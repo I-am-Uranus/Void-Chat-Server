@@ -38,7 +38,7 @@ namespace Void.Services
             _userService.Add(user);
         }
 
-        public User? Login(string username, string password)
+        public User? SignIn(string username, string password)
         {
             var user = _userService.GetByUsername(username);
             if (user == null) return null;

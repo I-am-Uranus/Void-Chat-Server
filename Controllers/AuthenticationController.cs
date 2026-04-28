@@ -31,10 +31,10 @@ namespace Void.Controllers
             }
         }
 
-        [HttpPost("login")]
-        public async Task<IActionResult> Login([FromBody] LoginRequest request)
+        [HttpPost("sign-in")]
+        public async Task<IActionResult> SignIn([FromBody] SignInRequest request)
         {
-            var user = _authenticationService.Login(request.Username, request.Password);
+            var user = _authenticationService.SignIn(request.Username, request.Password);
 
             if (user == null)
                 return Unauthorized(new { message = "Invalid credentials" });
@@ -56,7 +56,7 @@ namespace Void.Controllers
             {
                 Id = user.Id,
                 Username = user.UserName,
-                Message = "Logged in successfully"
+                Message = "Signed in successfully"
             });
         }
 
@@ -84,7 +84,7 @@ namespace Void.Controllers
             public string Email { get; set; }
         }
 
-        public class LoginRequest
+        public class SignInRequest
         {
             public string Username { get; set; }
             public string Password { get; set; }
