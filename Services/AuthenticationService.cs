@@ -85,10 +85,11 @@ namespace Void.Services
     bool isValidImage =
         profilePicture.StartsWith("data:image/png;base64,") ||
         profilePicture.StartsWith("data:image/jpeg;base64,") ||
-        profilePicture.StartsWith("data:image/webp;base64,");
+        profilePicture.StartsWith("data:image/webp;base64,")||
+        profilePicture.StartsWith("data:image/jfif;base64,");
 
     if (!isValidImage)
-        errors.Add("Profile picture must be PNG, JPG, or WEBP");
+        errors.Add("Profile picture must be PNG, JPG, JFIF, or WEBP");
 }
     }
 }
