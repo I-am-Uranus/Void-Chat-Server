@@ -12,12 +12,13 @@ namespace Void.Services
             _userService = userService;
         }
 
-        public void Register(string username, string password, string confirmPassword, string email)
+        public void Register(string username, string password, string confirmPassword, string email, string? profilePicture)
         {
             var errors = new List<string>();
 
             ValidatePassword(password, confirmPassword, errors);
             ValidateEmail(email, errors);
+            ValidateProfilePicture(profilePicture, errors);
 
             if (_userService.UserExists(username))
                 errors.Add("Username already exists");
@@ -32,7 +33,8 @@ namespace Void.Services
             {
                 UserName = username,
                 Password = BCrypt.Net.BCrypt.EnhancedHashPassword(password, workFactor: 11),
-                Email = email
+                Email = email,
+                ProfilePicture = profilePicture
             };
 
             _userService.Add(user);
@@ -66,5 +68,27 @@ namespace Void.Services
             if (string.IsNullOrEmpty(email) || !Regex.IsMatch(email, pattern))
                 errors.Add("Invalid email format");
         }
+
+        private void ValidateProfilePicture(string? profilePicture, List<string> errors)
+{
+    if (string.IsNullOrWhiteSpace(profilePicture))
+        return;
+
+    const int maxBase64Length = 400_000;
+
+    if (profilePicture.Length > maxBase64Length)
+    {
+        errors.Add("Profile picture must be smaller than 300 KB");
+        return;
+    }
+
+    bool isValidImage =
+        profilePicture.StartsWith("data:image/png;base64,") ||
+        profilePicture.StartsWith("data:image/jpeg;base64,") ||
+        profilePicture.StartsWith("data:image/webp;base64,");
+
+    if (!isValidImage)
+        errors.Add("Profile picture must be PNG, JPG, or WEBP");
+}
     }
 }

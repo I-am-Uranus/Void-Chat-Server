@@ -22,7 +22,7 @@ namespace Void.Controllers
         {
             try
             {
-                _authenticationService.Register(request.Username, request.Password, request.ConfirmPassword, request.Email);
+                _authenticationService.Register(request.Username, request.Password, request.ConfirmPassword, request.Email,  request.ProfilePicture);
                 return Ok($"User {request.Username} registered successfully");
             }
             catch (ArgumentException ex)
@@ -82,6 +82,7 @@ namespace Void.Controllers
             public string Password { get; set; }
             public string ConfirmPassword { get; set; }
             public string Email { get; set; }
+            public string ProfilePicture { get; set; }
         }
 
         public class SignInRequest
