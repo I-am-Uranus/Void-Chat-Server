@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Void.Models.Auth;
 using AuthenticationService = Void.Services.AuthenticationService;
 
 namespace Void.Controllers
@@ -22,12 +23,19 @@ namespace Void.Controllers
         {
             try
             {
-                _authenticationService.Register(request.Username, request.Password, request.ConfirmPassword, request.Email,  request.ProfilePicture);
-                return Ok($"User {request.Username} registered successfully");
+                _authenticationService.Register(
+                    request.Username,
+                    request.Password,
+                    request.ConfirmPassword,
+                    request.Email,
+                    request.ProfilePicture
+                );
+
+                return Ok(new { message = "User registered successfully" });
             }
             catch (ArgumentException ex)
             {
-                return BadRequest(ex.Message);
+                return BadRequest(new { message = ex.Message });
             }
         }
 
@@ -39,24 +47,14 @@ namespace Void.Controllers
             if (user == null)
                 return Unauthorized(new { message = "Invalid credentials" });
 
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.Name, user.UserName),
-                new Claim(ClaimTypes.NameIdentifier, user.Id.ToString())
-            };
-
-            var identity = new ClaimsIdentity(claims,
-                CookieAuthenticationDefaults.AuthenticationScheme);
-
-            await HttpContext.SignInAsync(
-                CookieAuthenticationDefaults.AuthenticationScheme,
-                new ClaimsPrincipal(identity));
+            await SignInUserAsync(user.Id, user.UserName);
 
             return Ok(new
             {
-                Id = user.Id,
-                Username = user.UserName,
-                Message = "Signed in successfully"
+                id = user.Id,
+                username = user.UserName,
+                profilePicture = user.ProfilePicture,
+                message = "Signed in successfully"
             });
         }
 
@@ -64,31 +62,40 @@ namespace Void.Controllers
         public async Task<IActionResult> Logout()
         {
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-            return Ok("Logged out");
+
+            return Ok(new { message = "Logged out" });
         }
 
         [HttpGet("check")]
-        public ActionResult CheckAuth()
+        public IActionResult CheckAuth()
         {
-            if (User.Identity.IsAuthenticated)
-                return Ok($"Hello {User.Identity.Name}");
-            return Unauthorized();
+            if (User.Identity?.IsAuthenticated != true)
+                return Unauthorized(new { message = "Not authenticated" });
+
+            return Ok(new
+            {
+                username = User.Identity.Name,
+                message = $"Hello {User.Identity.Name}"
+            });
         }
 
-
-        public class RegisterRequest
+        private async Task SignInUserAsync(int userId, string username)
         {
-            public string Username { get; set; }
-            public string Password { get; set; }
-            public string ConfirmPassword { get; set; }
-            public string Email { get; set; }
-            public string ProfilePicture { get; set; }
-        }
+            var claims = new List<Claim>
+            {
+                new(ClaimTypes.NameIdentifier, userId.ToString()),
+                new(ClaimTypes.Name, username)
+            };
 
-        public class SignInRequest
-        {
-            public string Username { get; set; }
-            public string Password { get; set; }
+            var identity = new ClaimsIdentity(
+                claims,
+                CookieAuthenticationDefaults.AuthenticationScheme
+            );
+
+            await HttpContext.SignInAsync(
+                CookieAuthenticationDefaults.AuthenticationScheme,
+                new ClaimsPrincipal(identity)
+            );
         }
     }
 }
