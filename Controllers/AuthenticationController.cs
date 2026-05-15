@@ -72,12 +72,24 @@ namespace Void.Controllers
             if (User.Identity?.IsAuthenticated != true)
                 return Unauthorized(new { message = "Not authenticated" });
 
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdClaim, out var userId))
+                return Unauthorized(new { message = "Invalid session" });
+
+            var user = _authenticationService.GetUserById(userId);
+            if (user == null)
+                return Unauthorized(new { message = "User not found" });
+
             return Ok(new
             {
-                username = User.Identity.Name,
-                message = $"Hello {User.Identity.Name}"
+                id = user.Id,
+                username = user.UserName,
+                email = user.Email,
+                profilePicture = user.ProfilePicture,
+                message = $"Hello {user.UserName}"
             });
         }
+
 
         private async Task SignInUserAsync(int userId, string username)
         {

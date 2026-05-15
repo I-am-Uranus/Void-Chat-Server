@@ -70,26 +70,35 @@ namespace Void.Services
         }
 
         private void ValidateProfilePicture(string? profilePicture, List<string> errors)
-{
-    if (string.IsNullOrWhiteSpace(profilePicture))
-        return;
+        {
+            if (string.IsNullOrWhiteSpace(profilePicture))
+                return;
 
-    const int maxBase64Length = 400_000;
+            const int maxBase64Length = 400_000;
 
-    if (profilePicture.Length > maxBase64Length)
-    {
-        errors.Add("Profile picture must be smaller than 300 KB");
-        return;
+            if (profilePicture.Length > maxBase64Length)
+            {
+                errors.Add("Profile picture must be smaller than 300 KB");
+                return;
+            }
+
+            bool isValidImage =
+                profilePicture.StartsWith("data:image/png;base64,") ||
+                profilePicture.StartsWith("data:image/jpeg;base64,") ||
+                profilePicture.StartsWith("data:image/webp;base64,") ||
+                profilePicture.StartsWith("data:image/jfif;base64,");
+
+            if (!isValidImage)
+                errors.Add("Profile picture must be PNG, JPG, JFIF, or WEBP");
+        }
+
+
+        public User? GetUserById(int id)
+        {
+            return _userService.GetById(id);
+        }
+
     }
 
-    bool isValidImage =
-        profilePicture.StartsWith("data:image/png;base64,") ||
-        profilePicture.StartsWith("data:image/jpeg;base64,") ||
-        profilePicture.StartsWith("data:image/webp;base64,")||
-        profilePicture.StartsWith("data:image/jfif;base64,");
 
-    if (!isValidImage)
-        errors.Add("Profile picture must be PNG, JPG, JFIF, or WEBP");
-}
-    }
 }
