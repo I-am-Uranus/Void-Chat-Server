@@ -11,6 +11,8 @@ namespace Void.Database
 
         public DbSet<User> Users { get; set; }
         public DbSet<Friendship> Friendships { get; set; }
+        public DbSet<FriendRequest> FriendRequests { get; set; }
+        public DbSet<UserBlock> UserBlocks { get; set; }
         public DbSet<Chat> Chats { get; set; }
         public DbSet<Group> Groups { get; set; }
         public DbSet<GroupMember> GroupMembers { get; set; }
@@ -21,15 +23,39 @@ namespace Void.Database
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.Entity<Friendship>()
-                .HasOne(f => f.User)
+                .HasOne(f => f.UserA)
                 .WithMany()
-                .HasForeignKey(f => f.UserId)
+                .HasForeignKey(f => f.UserAId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Friendship>()
-                .HasOne(f => f.Friend)
+                .HasOne(f => f.UserB)
                 .WithMany()
-                .HasForeignKey(f => f.FriendId)
+                .HasForeignKey(f => f.UserBId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FriendRequest>()
+                .HasOne(fr => fr.Requester)
+                .WithMany()
+                .HasForeignKey(fr => fr.RequesterId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<FriendRequest>()
+                .HasOne(fr => fr.Recipient)
+                .WithMany()
+                .HasForeignKey(fr => fr.RecipientId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<UserBlock>()
+                .HasOne(ub => ub.Blocker)
+                .WithMany()
+                .HasForeignKey(ub => ub.BlockerId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<UserBlock>()
+                .HasOne(ub => ub.Blocked)
+                .WithMany()
+                .HasForeignKey(ub => ub.BlockedId)
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<Chat>()

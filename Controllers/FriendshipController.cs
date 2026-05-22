@@ -11,7 +11,7 @@ namespace Void.Controllers
     {
         private readonly FriendshipService _friendshipService;
 
-        public FriendshipController(FriendshipService friendshipService, UserService userService)
+        public FriendshipController(FriendshipService friendshipService)
         {
             _friendshipService = friendshipService;
         }

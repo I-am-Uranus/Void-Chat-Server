@@ -7,97 +7,133 @@ namespace Void.Services
     public class FriendshipService
     {
         private readonly FriendshipRepository _friendshipRepository;
+        private readonly FriendRequestRepository _friendRequestRepository;
+        private readonly BlockRepository _blockRepository;
         private readonly UserService _userService;
 
-        public FriendshipService(FriendshipRepository friendshipRepository, UserService userService)
+        public FriendshipService(
+            FriendshipRepository friendshipRepository,
+            FriendRequestRepository friendRequestRepository,
+            BlockRepository blockRepository,
+            UserService userService)
         {
             _friendshipRepository = friendshipRepository;
+            _friendRequestRepository = friendRequestRepository;
+            _blockRepository = blockRepository;
             _userService = userService;
         }
 
-        public async Task<Friendship> SendFriendRequest(int userId, int friendId)
+        public async Task<FriendRequest> SendFriendRequest(int requesterId, int recipientId)
         {
-            if (userId == friendId)
+            if (requesterId == recipientId)
                 throw new ArgumentException("Cannot send friend request to yourself");
 
-            var existingFriendship = await _friendshipRepository.GetByUsersAsync(userId, friendId);
-            if (existingFriendship != null)
-            {
-                if (existingFriendship.Status == FriendshipStatus.Pending)
-                    throw new InvalidOperationException("Friend request already pending");
-
-                if (existingFriendship.Status == FriendshipStatus.Accepted)
-                    throw new InvalidOperationException("Already friends");
-
-                if (existingFriendship.Status == FriendshipStatus.Blocked)
-                    throw new InvalidOperationException("Cannot send request to blocked user");
-            }
-
-            var friend = await _userService.GetByIdAsync(friendId); if (friend == null)
+            var recipient = await _userService.GetByIdAsync(recipientId);
+            if (recipient == null)
                 throw new ArgumentException("User not found");
 
-            var friendship = new Friendship
+            if (await _blockRepository.IsBlockedBetweenUsersAsync(requesterId, recipientId))
+                throw new InvalidOperationException("Cannot send friend request because one of the users has blocked the other");
+
+            if (await _friendshipRepository.AreFriends(requesterId, recipientId))
+                throw new InvalidOperationException("Already friends");
+
+            var existingRequest = await _friendRequestRepository.GetByUsersAsync(requesterId, recipientId);
+            if (existingRequest != null)
             {
-                UserId = userId,
-                FriendId = friendId,
+                if (existingRequest.Status == FriendshipStatus.Pending)
+                {
+                    throw new InvalidOperationException("Friend request already pending");
+                }
+
+                if (existingRequest.Status == FriendshipStatus.Accepted)
+                {
+                    throw new InvalidOperationException("Already friends");
+                }
+
+                existingRequest.RequesterId = requesterId;
+                existingRequest.RecipientId = recipientId;
+                existingRequest.Status = FriendshipStatus.Pending;
+                existingRequest.UpdatedAt = DateTime.UtcNow;
+
+                await _friendRequestRepository.UpdateAsync(existingRequest);
+                return existingRequest;
+            }
+
+            var request = new FriendRequest
+            {
+                RequesterId = requesterId,
+                RecipientId = recipientId,
                 Status = FriendshipStatus.Pending
             };
 
-            await _friendshipRepository.AddAsync(friendship);
-            return friendship;
+            await _friendRequestRepository.AddAsync(request);
+            return request;
         }
 
-        public async Task<Friendship> RespondToFriendRequest(int friendshipId, int userId, bool accept)
+        public async Task<FriendRequest> RespondToFriendRequest(int requestId, int userId, bool accept)
         {
-            var friendship = await _friendshipRepository.GetByIdAsync(friendshipId);
-
-            if (friendship == null || friendship.FriendId != userId)
+            var request = await _friendRequestRepository.GetByIdAsync(requestId);
+            if (request == null || request.RecipientId != userId)
                 throw new ArgumentException("Friend request not found");
 
-            if (friendship.Status != FriendshipStatus.Pending)
+            if (request.Status != FriendshipStatus.Pending)
                 throw new InvalidOperationException("Friend request already processed");
 
-            friendship.Status = accept ? FriendshipStatus.Accepted : FriendshipStatus.Rejected;
+            request.Status = accept ? FriendshipStatus.Accepted : FriendshipStatus.Rejected;
+            request.UpdatedAt = DateTime.UtcNow;
+            await _friendRequestRepository.UpdateAsync(request);
 
-            await _friendshipRepository.UpdateAsync(friendship);
-            return friendship;
+            if (accept)
+            {
+                var existingFriendship = await _friendshipRepository.GetByUsersAsync(request.RequesterId, request.RecipientId);
+                if (existingFriendship == null)
+                {
+                    await _friendshipRepository.AddAsync(new Friendship
+                    {
+                        UserAId = request.RequesterId,
+                        UserBId = request.RecipientId
+                    });
+                }
+            }
+
+            return request;
         }
 
         public async Task<List<FriendshipDTO>> GetFriends(int userId)
         {
-            var friendships = await _friendshipRepository.GetUserFriendshipsAsync(userId);
+            var friendships = await _friendshipRepository.GetFriendsForUserAsync(userId);
 
             return friendships.Select(f => new FriendshipDTO
             {
                 Id = f.Id,
-                UserId = f.UserId,
-                FriendId = f.FriendId,
-                FriendUsername = f.UserId == userId ? f.Friend.UserName : f.User.UserName,
-                Status = f.Status,
+                UserId = userId,
+                FriendId = f.UserAId == userId ? f.UserBId : f.UserAId,
+                FriendUsername = f.UserAId == userId ? f.UserB.UserName : f.UserA.UserName,
+                Status = FriendshipStatus.Accepted,
                 CreatedAt = f.CreatedAt
             }).ToList();
         }
 
         public async Task<List<FriendshipDTO>> GetPendingRequests(int userId)
         {
-            var requests = await _friendshipRepository.GetPendingRequestsAsync(userId);
+            var requests = await _friendRequestRepository.GetPendingRequestsForRecipientAsync(userId);
 
-            return requests.Select(f => new FriendshipDTO
+            return requests.Select(r => new FriendshipDTO
             {
-                Id = f.Id,
-                UserId = f.UserId,
-                FriendId = f.FriendId,
-                FriendUsername = f.User.UserName,
-                Status = f.Status,
-                CreatedAt = f.CreatedAt
+                Id = r.Id,
+                UserId = r.RequesterId,
+                FriendId = r.RecipientId,
+                FriendUsername = r.Requester.UserName,
+                Status = r.Status,
+                CreatedAt = r.CreatedAt
             }).ToList();
         }
 
         public async Task<bool> RemoveFriend(int userId, int friendId)
         {
             var friendship = await _friendshipRepository.GetByUsersAsync(userId, friendId);
-
-            if (friendship == null || friendship.Status != FriendshipStatus.Accepted)
+            if (friendship == null)
                 return false;
 
             return await _friendshipRepository.DeleteAsync(friendship.Id);
@@ -108,23 +144,26 @@ namespace Void.Services
             if (userId == blockUserId)
                 throw new ArgumentException("Cannot block yourself");
 
-            var friendship = await _friendshipRepository.GetByUsersAsync(userId, blockUserId);
+            if (await _blockRepository.IsBlockedBetweenUsersAsync(userId, blockUserId))
+                return true;
 
-            if (friendship == null)
+            var friendship = await _friendshipRepository.GetByUsersAsync(userId, blockUserId);
+            if (friendship != null)
             {
-                friendship = new Friendship
-                {
-                    UserId = userId,
-                    FriendId = blockUserId,
-                    Status = FriendshipStatus.Blocked
-                };
-                await _friendshipRepository.AddAsync(friendship);
+                await _friendshipRepository.DeleteAsync(friendship.Id);
             }
-            else
+
+            var existingRequest = await _friendRequestRepository.GetByUsersAsync(userId, blockUserId);
+            if (existingRequest != null)
             {
-                friendship.Status = FriendshipStatus.Blocked;
-                await _friendshipRepository.UpdateAsync(friendship);
+                await _friendRequestRepository.DeleteAsync(existingRequest.Id);
             }
+
+            await _blockRepository.AddAsync(new UserBlock
+            {
+                BlockerId = userId,
+                BlockedId = blockUserId
+            });
 
             return true;
         }

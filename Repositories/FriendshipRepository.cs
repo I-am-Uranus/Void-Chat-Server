@@ -13,37 +13,30 @@ namespace Void.Repositories
             _context = context;
         }
 
-        public async Task<Friendship> GetByIdAsync(int id)
+        public async Task<Friendship?> GetByIdAsync(int id)
         {
             return await _context.Friendships
-                .Include(f => f.Friend)
+                .Include(f => f.UserA)
+                .Include(f => f.UserB)
                 .FirstOrDefaultAsync(f => f.Id == id);
         }
 
-        public async Task<Friendship> GetByUsersAsync(int userId, int friendId)
+        public async Task<Friendship?> GetByUsersAsync(int userAId, int userBId)
         {
             return await _context.Friendships
-                .Include(f => f.Friend)
+                .Include(f => f.UserA)
+                .Include(f => f.UserB)
                 .FirstOrDefaultAsync(f =>
-                    (f.UserId == userId && f.FriendId == friendId) ||
-                    (f.UserId == friendId && f.FriendId == userId));
+                    (f.UserAId == userAId && f.UserBId == userBId) ||
+                    (f.UserAId == userBId && f.UserBId == userAId));
         }
 
-        public async Task<List<Friendship>> GetUserFriendshipsAsync(int userId)
+        public async Task<List<Friendship>> GetFriendsForUserAsync(int userId)
         {
             return await _context.Friendships
-                .Include(f => f.Friend)
-                .Include(f => f.User)
-                .Where(f => (f.UserId == userId || f.FriendId == userId) &&
-                           f.Status == FriendshipStatus.Accepted)
-                .ToListAsync();
-        }
-
-        public async Task<List<Friendship>> GetPendingRequestsAsync(int userId)
-        {
-            return await _context.Friendships
-                .Include(f => f.User)
-                .Where(f => f.FriendId == userId && f.Status == FriendshipStatus.Pending)
+                .Include(f => f.UserA)
+                .Include(f => f.UserB)
+                .Where(f => f.UserAId == userId || f.UserBId == userId)
                 .ToListAsync();
         }
 
@@ -69,13 +62,12 @@ namespace Void.Repositories
             return true;
         }
 
-        public async Task<bool> AreFriends(int userId, int friendId)
+        public async Task<bool> AreFriends(int userAId, int userBId)
         {
             return await _context.Friendships
                 .AnyAsync(f =>
-                    ((f.UserId == userId && f.FriendId == friendId) ||
-                     (f.UserId == friendId && f.FriendId == userId)) &&
-                    f.Status == FriendshipStatus.Accepted);
+                    (f.UserAId == userAId && f.UserBId == userBId) ||
+                    (f.UserAId == userBId && f.UserBId == userAId));
         }
     }
 }
