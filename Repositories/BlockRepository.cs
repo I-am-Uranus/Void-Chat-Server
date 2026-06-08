@@ -43,5 +43,15 @@ namespace Void.Repositories
             await _context.SaveChangesAsync();
             return true;
         }
+
+        public async Task<bool> DeleteByUsersAsync(int blockerId, int blockedId)
+        {
+            var block = await _context.UserBlocks.FirstOrDefaultAsync(ub => ub.BlockerId == blockerId && ub.BlockedId == blockedId);
+            if (block == null) return false;
+
+            _context.UserBlocks.Remove(block);
+            await _context.SaveChangesAsync();
+            return true;
+        }
     }
 }

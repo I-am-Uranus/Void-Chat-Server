@@ -37,6 +37,7 @@ namespace Void.Services
             if (user == null) return false;
 
             user.UserName = updatedUser.UserName;
+            user.DisplayName = updatedUser.DisplayName;
             user.Password = updatedUser.Password;
             user.Email = updatedUser.Email;
 

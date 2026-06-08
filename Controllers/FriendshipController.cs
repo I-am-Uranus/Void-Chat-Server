@@ -109,6 +109,28 @@ namespace Void.Controllers
                 return BadRequest(ex.Message);
             }
         }
+
+        [HttpPost("unblock/{userIdToUnblock}")]
+        public async Task<IActionResult> UnblockUser(int userIdToUnblock)
+        {
+            try
+            {
+                var userId = GetCurrentUserId();
+                var result = await _friendshipService.UnblockUser(userId, userIdToUnblock);
+                if (!result)
+                    return NotFound(new { message = "Block not found" });
+
+                return Ok(new { message = "User unblocked successfully" });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Forbid();
+            }
+        }
     }
 
 }

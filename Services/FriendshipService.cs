@@ -10,17 +10,20 @@ namespace Void.Services
         private readonly FriendRequestRepository _friendRequestRepository;
         private readonly BlockRepository _blockRepository;
         private readonly UserService _userService;
+        private readonly NotificationService _notificationService;
 
         public FriendshipService(
             FriendshipRepository friendshipRepository,
             FriendRequestRepository friendRequestRepository,
             BlockRepository blockRepository,
-            UserService userService)
+            UserService userService,
+            NotificationService notificationService)
         {
             _friendshipRepository = friendshipRepository;
             _friendRequestRepository = friendRequestRepository;
             _blockRepository = blockRepository;
             _userService = userService;
+            _notificationService = notificationService;
         }
 
         public async Task<FriendRequest> SendFriendRequest(int requesterId, int recipientId)
@@ -50,6 +53,9 @@ namespace Void.Services
             };
 
             await _friendRequestRepository.AddAsync(request);
+
+            // notify recipient of friend request
+            await _notificationService.SendToUser(recipientId, new { Type = "FriendRequestReceived", From = requesterId, RequestId = request.Id });
             return request;
         }
 
@@ -159,6 +165,21 @@ namespace Void.Services
         public async Task<bool> AreFriends(int userId, int friendId)
         {
             return await _friendshipRepository.AreFriends(userId, friendId);
+        }
+
+        public async Task<bool> UnblockUser(int userId, int unblockUserId)
+        {
+            if (userId == unblockUserId)
+                throw new ArgumentException("Cannot unblock yourself");
+
+            var block = await _blockRepository.GetByUsersAsync(userId, unblockUserId);
+            if (block == null)
+                return false;
+
+            if (block.BlockerId != userId)
+                throw new UnauthorizedAccessException("You can only unblock users you have blocked");
+
+            return await _blockRepository.DeleteAsync(block.Id);
         }
     }
 }

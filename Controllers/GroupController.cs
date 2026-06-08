@@ -2,13 +2,20 @@
 using Microsoft.EntityFrameworkCore;
 using Void.Database;
 using Void.Models;
+using Void.Services;
 
 [ApiController]
 [Route("api/groups")]
 public class GroupController : ControllerBase
 {
     private readonly DatabaseContext _context;
-    public GroupController(DatabaseContext context) => _context = context;
+    private readonly NotificationService _notificationService;
+
+    public GroupController(DatabaseContext context, NotificationService notificationService)
+    {
+        _context = context;
+        _notificationService = notificationService;
+    }
 
     [HttpPost]
     public async Task<IActionResult> CreateGroup([FromBody] Group group)
@@ -37,6 +44,8 @@ public class GroupController : ControllerBase
         {
             _context.GroupMembers.Add(new GroupMember { GroupId = id, UserId = userId });
             await _context.SaveChangesAsync();
+            // notify the user they were added to the group
+            await _notificationService.SendToUser(userId, new { Type = "AddedToGroup", GroupId = id });
         }
         return Ok();
     }
@@ -71,6 +80,33 @@ public class GroupController : ControllerBase
         message.Timestamp = DateTime.UtcNow;
         _context.GroupMessages.Add(message);
         await _context.SaveChangesAsync();
+        // notify all group members (except sender) about new group message
+        var memberIds = await _context.GroupMembers
+            .Where(m => m.GroupId == id && m.UserId != message.SenderId)
+            .Select(m => m.UserId)
+            .ToListAsync();
+
+        foreach (var memberId in memberIds)
+        {
+            await _notificationService.SendToUser(memberId, new { Type = "NewGroupMessage", GroupId = id, From = message.SenderId, MessageId = message.Id, Preview = (message.Content ?? string.Empty).Substring(0, Math.Min(200, (message.Content ?? string.Empty).Length)) });
+        }
+
         return Ok(message);
+    }
+
+    /// <summary>
+    /// Sends an image as base64 in a group chat.
+    /// </summary>
+    /// <param name="id">The ID of the group.</param>
+    /// <param name="imageMessage">The group message containing base64 image data and mime type.</param>
+    /// <returns>The created group message with image data.</returns>
+    [HttpPost("{id}/messages/image")]
+    public async Task<IActionResult> SendImage(int id, [FromBody] GroupMessage imageMessage)
+    {
+        imageMessage.GroupId = id;
+        imageMessage.Timestamp = DateTime.UtcNow;
+        _context.GroupMessages.Add(imageMessage);
+        await _context.SaveChangesAsync();
+        return Ok(imageMessage);
     }
 }

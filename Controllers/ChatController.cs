@@ -26,4 +26,35 @@ public class ChatController : ControllerBase
         var result = await _chatService.SendMessageAsync(chatDto);
         return Ok(result);
     }
+
+    /// <summary>
+    /// Sends an image as base64 in a private chat.
+    /// </summary>
+    /// <param name="user1">The ID of the first user (sender).</param>
+    /// <param name="user2">The ID of the second user (receiver).</param>
+    /// <param name="chatDto">The chat message DTO containing base64 image data.</param>
+    /// <returns>The created chat message with image data.</returns>
+    [HttpPost("image/{user1}/{user2}")]
+    public async Task<IActionResult> SendImage(int user1, int user2, [FromBody] ChatCreateDTO chatDto)
+    {
+        chatDto.SenderId = user1;
+        chatDto.ReceiverId = user2;
+        var result = await _chatService.SendMessageAsync(chatDto);
+        return Ok(result);
+    }
+
+    [HttpPost("seen/conversation")]
+    public async Task<IActionResult> MarkConversationSeen(int viewerId, int otherUserId)
+    {
+        var count = await _chatService.MarkConversationAsSeen(viewerId, otherUserId);
+        return Ok(new { seen = count });
+    }
+
+    [HttpPost("seen/message/{messageId}")]
+    public async Task<IActionResult> MarkMessageSeen(int messageId, [FromQuery] int viewerId)
+    {
+        var ok = await _chatService.MarkMessageAsSeen(messageId, viewerId);
+        if (!ok) return NotFound(new { message = "Message not found or not authorized" });
+        return Ok(new { message = "Message marked as seen" });
+    }
 }

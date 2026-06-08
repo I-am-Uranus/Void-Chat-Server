@@ -22,7 +22,9 @@ namespace Void.Repositories
             _context.Users.FirstOrDefault(u => u.UserName == username);
 
         public List<User> FindByName(string name) =>
-            _context.Users.Where(u => u.UserName.Contains(name)).ToList();
+            _context.Users
+                .Where(u => u.DisplayName != null && u.DisplayName.ToLower().Contains(name.ToLower()))
+                .ToList();
 
         public void Add(User user)
         {

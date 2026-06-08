@@ -37,6 +37,11 @@ namespace Void.Controllers
         [HttpGet("search")]
         public ActionResult<List<User>> FindByName([FromQuery] string userName)
         {
+            if (string.IsNullOrWhiteSpace(userName))
+            {
+                return Ok(new List<User>());
+            }
+
             return Ok(_userService.FindByName(userName));
         }
 
