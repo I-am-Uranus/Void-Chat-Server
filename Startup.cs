@@ -45,7 +45,7 @@ namespace Void
             app.MapHub<NotificationHub>("/notificationHub");
 
             app.MapControllers();
-            EnsureUserDisplayNameColumn(app);
+            InitializeDatabase(app);
 
             app.Run();
         }
@@ -103,11 +103,18 @@ namespace Void
 
 
         }
-
-        private static void EnsureUserDisplayNameColumn(WebApplication app)
+        private static void InitializeDatabase(WebApplication app)
         {
             using var scope = app.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+
+            context.Database.EnsureCreated();
+            EnsureUserDisplayNameColumn(context);
+            EnsureFriendshipTableSchema(context);
+        }
+
+        private static void EnsureUserDisplayNameColumn(DatabaseContext context)
+        {
             var connection = context.Database.GetDbConnection();
 
             if (connection.State != ConnectionState.Open)
@@ -135,6 +142,103 @@ namespace Void
             {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN DisplayName TEXT;");
             }
+        }
+
+        private static void EnsureFriendshipTableSchema(DatabaseContext context)
+        {
+            var connection = context.Database.GetDbConnection();
+
+            if (connection.State != ConnectionState.Open)
+            {
+                connection.Open();
+            }
+
+            using var checkCommand = connection.CreateCommand();
+            checkCommand.CommandText = "PRAGMA table_info('Friendships');";
+
+            var hasRows = false;
+            var hasUserAId = false;
+            var hasUserBId = false;
+            var hasLegacyUserId = false;
+            var hasLegacyFriendId = false;
+
+            using (var reader = checkCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    hasRows = true;
+                    var columnName = reader["name"]?.ToString();
+
+                    if (string.Equals(columnName, "UserAId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasUserAId = true;
+                    }
+                    else if (string.Equals(columnName, "UserBId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasUserBId = true;
+                    }
+                    else if (string.Equals(columnName, "UserId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasLegacyUserId = true;
+                    }
+                    else if (string.Equals(columnName, "FriendId", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasLegacyFriendId = true;
+                    }
+                }
+            }
+
+            if (hasUserAId && hasUserBId)
+            {
+                return;
+            }
+
+            if (!hasRows)
+            {
+                context.Database.ExecuteSqlRaw(
+                    @"CREATE TABLE IF NOT EXISTS Friendships (
+                        Id INTEGER NOT NULL CONSTRAINT PK_Friendships PRIMARY KEY AUTOINCREMENT,
+                        UserAId INTEGER NOT NULL,
+                        UserBId INTEGER NOT NULL,
+                        CreatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        CONSTRAINT FK_Friendships_Users_UserAId FOREIGN KEY (UserAId) REFERENCES Users (Id) ON DELETE CASCADE,
+                        CONSTRAINT FK_Friendships_Users_UserBId FOREIGN KEY (UserBId) REFERENCES Users (Id) ON DELETE CASCADE
+                    );");
+
+                context.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Friendships_UserAId ON Friendships (UserAId);");
+                context.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Friendships_UserBId ON Friendships (UserBId);");
+                return;
+            }
+
+            if (!(hasLegacyUserId && hasLegacyFriendId))
+            {
+                throw new InvalidOperationException("Friendships table schema is incompatible with the current application model.");
+            }
+
+            using var transaction = context.Database.BeginTransaction();
+
+            context.Database.ExecuteSqlRaw(
+                @"CREATE TABLE __Friendships_Migration (
+                    Id INTEGER NOT NULL CONSTRAINT PK_Friendships PRIMARY KEY AUTOINCREMENT,
+                    UserAId INTEGER NOT NULL,
+                    UserBId INTEGER NOT NULL,
+                    CreatedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    CONSTRAINT FK_Friendships_Users_UserAId FOREIGN KEY (UserAId) REFERENCES Users (Id) ON DELETE CASCADE,
+                    CONSTRAINT FK_Friendships_Users_UserBId FOREIGN KEY (UserBId) REFERENCES Users (Id) ON DELETE CASCADE
+                );");
+
+            context.Database.ExecuteSqlRaw(
+                @"INSERT INTO __Friendships_Migration (Id, UserAId, UserBId, CreatedAt)
+                  SELECT Id, UserId, FriendId, COALESCE(CreatedAt, CURRENT_TIMESTAMP)
+                  FROM Friendships
+                  WHERE Status = 1 OR Status IS NULL;");
+
+            context.Database.ExecuteSqlRaw("DROP TABLE Friendships;");
+            context.Database.ExecuteSqlRaw("ALTER TABLE __Friendships_Migration RENAME TO Friendships;");
+            context.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Friendships_UserAId ON Friendships (UserAId);");
+            context.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Friendships_UserBId ON Friendships (UserBId);");
+
+            transaction.Commit();
         }
     }
 }
