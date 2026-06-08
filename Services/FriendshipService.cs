@@ -172,5 +172,20 @@ namespace Void.Services
         {
             return await _friendshipRepository.AreFriends(userId, friendId);
         }
+
+        public async Task<bool> UnblockUser(int userId, int unblockUserId)
+        {
+            if (userId == unblockUserId)
+                throw new ArgumentException("Cannot unblock yourself");
+
+            var block = await _blockRepository.GetByUsersAsync(userId, unblockUserId);
+            if (block == null)
+                return false;
+
+            if (block.BlockerId != userId)
+                throw new UnauthorizedAccessException("You can only unblock users you have blocked");
+
+            return await _blockRepository.DeleteAsync(block.Id);
+        }
     }
 }
