@@ -35,6 +35,9 @@ namespace Void.Services
             if (recipient == null)
                 throw new ArgumentException("User not found");
 
+            var requester = await _userService.GetByIdAsync(requesterId);
+            var requesterName = requester?.UserName ?? "Someone";
+
             if (await _blockRepository.IsBlockedBetweenUsersAsync(requesterId, recipientId))
                 throw new InvalidOperationException("Cannot send friend request because one of the users has blocked the other");
 
@@ -54,8 +57,14 @@ namespace Void.Services
 
             await _friendRequestRepository.AddAsync(request);
 
-            // notify recipient of friend request
-            await _notificationService.SendToUser(recipientId, new { Type = "FriendRequestReceived", From = requesterId, RequestId = request.Id });
+            await _notificationService.CreateAsync(
+                recipientId,
+                requesterId,
+                NotificationTypes.FriendRequest,
+                "New friend request",
+                $"{requesterName} sent you a friend request.",
+                request.Id);
+
             return request;
         }
 
@@ -91,6 +100,7 @@ namespace Void.Services
             }
 
             await _friendRequestRepository.UpdateAsync(request);
+            await _notificationService.MarkRelatedAsReadAsync(userId, NotificationTypes.FriendRequest, request.Id);
             return request;
         }
 

@@ -17,6 +17,7 @@ namespace Void.Database
         public DbSet<Group> Groups { get; set; }
         public DbSet<GroupMember> GroupMembers { get; set; }
         public DbSet<GroupMessage> GroupMessages { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -104,6 +105,23 @@ namespace Void.Database
                 .WithMany()
                 .HasForeignKey(gm => gm.SenderId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.RecipientUserId, n.CreatedAt });
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.RecipientUserId, n.Type, n.CreatedAt });
+
+            modelBuilder.Entity<Notification>()
+                .HasIndex(n => new { n.RecipientUserId, n.IsRead });
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Type)
+                .HasMaxLength(50);
+
+            modelBuilder.Entity<Notification>()
+                .Property(n => n.Title)
+                .HasMaxLength(200);
         }
     }
 }

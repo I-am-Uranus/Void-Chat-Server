@@ -42,6 +42,12 @@ namespace Void.Repositories
 
         public async Task AddAsync(Friendship friendship)
         {
+            var userAId = Math.Min(friendship.UserAId, friendship.UserBId);
+            var userBId = Math.Max(friendship.UserAId, friendship.UserBId);
+
+            friendship.UserAId = userAId;
+            friendship.UserBId = userBId;
+
             _context.Friendships.Add(friendship);
             await _context.SaveChangesAsync();
         }
