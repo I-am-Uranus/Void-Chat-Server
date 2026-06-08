@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR;
+using System;
 using System.Linq;
 using System.Collections.Generic;
 using Void.DTOs;
@@ -12,11 +13,13 @@ namespace Void.Services
     {
         private readonly ChatRepository _repository;
         private readonly IHubContext<PrivateChatHub> _hub;
+        private readonly NotificationService _notificationService;
 
-        public ChatService(ChatRepository repository, IHubContext<PrivateChatHub> hub)
+        public ChatService(ChatRepository repository, IHubContext<PrivateChatHub> hub, NotificationService notificationService)
         {
             _repository = repository;
             _hub = hub;
+            _notificationService = notificationService;
         }
 
         public async Task<List<ChatWithUserDTO>> GetConversationAsync(int user1, int user2)
@@ -66,6 +69,12 @@ namespace Void.Services
             };
 
             await _hub.Clients.User(chat.ReceiverId.ToString()).SendAsync("ReceiveMessage", result);
+
+            // send a lightweight notification for new private message
+            if (chat.ReceiverId.HasValue)
+            {
+                await _notificationService.SendToUser(chat.ReceiverId.Value, new { Type = "NewPrivateMessage", From = chat.SenderId, MessageId = chat.Id, Preview = (chat.Content ?? string.Empty).Substring(0, Math.Min(200, (chat.Content ?? string.Empty).Length)) });
+            }
 
             return result;
         }

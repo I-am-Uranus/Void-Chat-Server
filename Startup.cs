@@ -92,6 +92,7 @@ namespace Void
             services.AddScoped<AuthenticationService>();
             services.AddScoped<UserService>();
             services.AddScoped<FriendshipService>();
+            services.AddScoped<ChatService>();
 
             services.AddScoped<UserRepository>();
             services.AddScoped<FriendshipRepository>();

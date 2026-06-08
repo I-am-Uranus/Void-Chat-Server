@@ -10,17 +10,20 @@ namespace Void.Services
         private readonly FriendRequestRepository _friendRequestRepository;
         private readonly BlockRepository _blockRepository;
         private readonly UserService _userService;
+        private readonly NotificationService _notificationService;
 
         public FriendshipService(
             FriendshipRepository friendshipRepository,
             FriendRequestRepository friendRequestRepository,
             BlockRepository blockRepository,
-            UserService userService)
+            UserService userService,
+            NotificationService notificationService)
         {
             _friendshipRepository = friendshipRepository;
             _friendRequestRepository = friendRequestRepository;
             _blockRepository = blockRepository;
             _userService = userService;
+            _notificationService = notificationService;
         }
 
         public async Task<FriendRequest> SendFriendRequest(int requesterId, int recipientId)
@@ -68,6 +71,9 @@ namespace Void.Services
             };
 
             await _friendRequestRepository.AddAsync(request);
+
+            // notify recipient of friend request
+            await _notificationService.SendToUser(recipientId, new { Type = "FriendRequestReceived", From = requesterId, RequestId = request.Id });
             return request;
         }
 
