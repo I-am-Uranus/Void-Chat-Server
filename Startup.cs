@@ -42,6 +42,7 @@ namespace Void
             app.UseAuthorization();
             app.MapHub<GroupChatHub>("/groupChatHub");
             app.MapHub<PrivateChatHub>("/privateChatHub");
+            app.MapHub<NotificationHub>("/notificationHub");
 
             app.MapControllers();
             EnsureUserDisplayNameColumn(app);
@@ -57,6 +58,7 @@ namespace Void
             services.AddSignalR();
 
             services.AddScoped<UserService>();
+            services.AddScoped<NotificationService>();
             services.AddDbContext<DatabaseContext>(options =>
                 options.UseSqlite("Data Source=Void.db"));
 
