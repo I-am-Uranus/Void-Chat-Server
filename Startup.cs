@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
+using System.Data;
 using Void.Database;
 using Void.Hubs;
 using Void.Repositories;
@@ -43,8 +44,7 @@ namespace Void
             app.MapHub<PrivateChatHub>("/privateChatHub");
 
             app.MapControllers();
-
-
+            EnsureUserDisplayNameColumn(app);
 
             app.Run();
         }
@@ -99,6 +99,39 @@ namespace Void
 
 
 
+        }
+
+        private static void EnsureUserDisplayNameColumn(WebApplication app)
+        {
+            using var scope = app.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
+            var connection = context.Database.GetDbConnection();
+
+            if (connection.State != ConnectionState.Open)
+            {
+                connection.Open();
+            }
+
+            using var checkCommand = connection.CreateCommand();
+            checkCommand.CommandText = "PRAGMA table_info('Users');";
+
+            var hasDisplayName = false;
+            using (var reader = checkCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    if (string.Equals(reader["name"]?.ToString(), "DisplayName", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasDisplayName = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasDisplayName)
+            {
+                context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN DisplayName TEXT;");
+            }
         }
     }
 }

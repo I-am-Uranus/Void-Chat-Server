@@ -12,10 +12,19 @@ namespace Void.Services
             _userService = userService;
         }
 
-        public void Register(string username, string password, string confirmPassword, string email, string? profilePicture)
+        public void Register(
+            string username,
+            string displayName,
+            string password,
+            string confirmPassword,
+            string email,
+            string? profilePicture
+        )
         {
             var errors = new List<string>();
 
+            ValidateUsername(username, errors);
+            ValidateDisplayName(displayName, errors);
             ValidatePassword(password, confirmPassword, errors);
             ValidateEmail(email, errors);
             ValidateProfilePicture(profilePicture, errors);
@@ -32,6 +41,7 @@ namespace Void.Services
             var user = new User
             {
                 UserName = username,
+                DisplayName = displayName,
                 Password = BCrypt.Net.BCrypt.EnhancedHashPassword(password, workFactor: 11),
                 Email = email,
                 ProfilePicture = profilePicture
@@ -46,6 +56,18 @@ namespace Void.Services
             if (user == null) return null;
 
             return BCrypt.Net.BCrypt.EnhancedVerify(password, user.Password) ? user : null;
+        }
+
+        private void ValidateUsername(string username, List<string> errors)
+        {
+            if (string.IsNullOrWhiteSpace(username))
+                errors.Add("Username is required");
+        }
+
+        private void ValidateDisplayName(string displayName, List<string> errors)
+        {
+            if (string.IsNullOrWhiteSpace(displayName))
+                errors.Add("Display name is required");
         }
 
         private void ValidatePassword(string password, string confirmPassword, List<string> errors)

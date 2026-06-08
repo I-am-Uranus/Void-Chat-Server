@@ -25,6 +25,7 @@ namespace Void.Controllers
             {
                 _authenticationService.Register(
                     request.Username,
+                    request.DisplayName,
                     request.Password,
                     request.ConfirmPassword,
                     request.Email,
@@ -53,6 +54,7 @@ namespace Void.Controllers
             {
                 id = user.Id,
                 username = user.UserName,
+                displayName = user.DisplayName,
                 profilePicture = user.ProfilePicture,
                 message = "Signed in successfully"
             });
@@ -84,9 +86,10 @@ namespace Void.Controllers
             {
                 id = user.Id,
                 username = user.UserName,
+                displayName = user.DisplayName,
                 email = user.Email,
                 profilePicture = user.ProfilePicture,
-                message = $"Hello {user.UserName}"
+                message = $"Hello {user.DisplayName ?? user.UserName}"
             });
         }
 
