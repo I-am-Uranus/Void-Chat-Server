@@ -73,4 +73,20 @@ public class GroupController : ControllerBase
         await _context.SaveChangesAsync();
         return Ok(message);
     }
+
+    /// <summary>
+    /// Sends an image as base64 in a group chat.
+    /// </summary>
+    /// <param name="id">The ID of the group.</param>
+    /// <param name="imageMessage">The group message containing base64 image data and mime type.</param>
+    /// <returns>The created group message with image data.</returns>
+    [HttpPost("{id}/messages/image")]
+    public async Task<IActionResult> SendImage(int id, [FromBody] GroupMessage imageMessage)
+    {
+        imageMessage.GroupId = id;
+        imageMessage.Timestamp = DateTime.UtcNow;
+        _context.GroupMessages.Add(imageMessage);
+        await _context.SaveChangesAsync();
+        return Ok(imageMessage);
+    }
 }
