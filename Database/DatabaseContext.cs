@@ -23,6 +23,10 @@ namespace Void.Database
             base.OnModelCreating(modelBuilder);
 
             modelBuilder.Entity<Friendship>()
+                .HasIndex(f => new { f.UserAId, f.UserBId })
+                .IsUnique();
+
+            modelBuilder.Entity<Friendship>()
                 .HasOne(f => f.UserA)
                 .WithMany()
                 .HasForeignKey(f => f.UserAId)
@@ -35,6 +39,9 @@ namespace Void.Database
                 .OnDelete(DeleteBehavior.Cascade);
 
             modelBuilder.Entity<FriendRequest>()
+                .HasIndex(fr => new { fr.RequesterId, fr.RecipientId, fr.Status });
+
+            modelBuilder.Entity<FriendRequest>()
                 .HasOne(fr => fr.Requester)
                 .WithMany()
                 .HasForeignKey(fr => fr.RequesterId)
@@ -45,6 +52,10 @@ namespace Void.Database
                 .WithMany()
                 .HasForeignKey(fr => fr.RecipientId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<UserBlock>()
+                .HasIndex(ub => new { ub.BlockerId, ub.BlockedId })
+                .IsUnique();
 
             modelBuilder.Entity<UserBlock>()
                 .HasOne(ub => ub.Blocker)

@@ -31,6 +31,17 @@ namespace Void.Repositories
                     (fr.RequesterId == recipientId && fr.RecipientId == requesterId));
         }
 
+        public async Task<FriendRequest?> GetPendingBetweenUsersAsync(int userAId, int userBId)
+        {
+            return await _context.FriendRequests
+                .Include(fr => fr.Requester)
+                .Include(fr => fr.Recipient)
+                .FirstOrDefaultAsync(fr =>
+                    fr.Status == FriendshipStatus.Pending &&
+                    ((fr.RequesterId == userAId && fr.RecipientId == userBId) ||
+                     (fr.RequesterId == userBId && fr.RecipientId == userAId)));
+        }
+
         public async Task<List<FriendRequest>> GetPendingRequestsForRecipientAsync(int recipientId)
         {
             return await _context.FriendRequests

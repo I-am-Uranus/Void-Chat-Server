@@ -7,7 +7,7 @@ namespace Void.Models
         public int BlockedId { get; set; }
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-        public virtual User Blocker { get; set; }
-        public virtual User Blocked { get; set; }
+        public virtual User Blocker { get; set; } = null!;
+        public virtual User Blocked { get; set; } = null!;
     }
 }

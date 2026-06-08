@@ -19,6 +19,7 @@ namespace Void.DTOs
 
     public class FriendshipResponseDTO
     {
+        public int RequestId { get; set; }
         public int FriendshipId { get; set; }
         public bool Accept { get; set; }
     }

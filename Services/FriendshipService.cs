@@ -38,27 +38,9 @@ namespace Void.Services
             if (await _friendshipRepository.AreFriends(requesterId, recipientId))
                 throw new InvalidOperationException("Already friends");
 
-            var existingRequest = await _friendRequestRepository.GetByUsersAsync(requesterId, recipientId);
+            var existingRequest = await _friendRequestRepository.GetPendingBetweenUsersAsync(requesterId, recipientId);
             if (existingRequest != null)
-            {
-                if (existingRequest.Status == FriendshipStatus.Pending)
-                {
-                    throw new InvalidOperationException("Friend request already pending");
-                }
-
-                if (existingRequest.Status == FriendshipStatus.Accepted)
-                {
-                    throw new InvalidOperationException("Already friends");
-                }
-
-                existingRequest.RequesterId = requesterId;
-                existingRequest.RecipientId = recipientId;
-                existingRequest.Status = FriendshipStatus.Pending;
-                existingRequest.UpdatedAt = DateTime.UtcNow;
-
-                await _friendRequestRepository.UpdateAsync(existingRequest);
-                return existingRequest;
-            }
+                throw new InvalidOperationException("Friend request already pending");
 
             var request = new FriendRequest
             {
@@ -80,23 +62,29 @@ namespace Void.Services
             if (request.Status != FriendshipStatus.Pending)
                 throw new InvalidOperationException("Friend request already processed");
 
+            if (accept && await _blockRepository.IsBlockedBetweenUsersAsync(request.RequesterId, request.RecipientId))
+                throw new InvalidOperationException("Cannot accept friend request because one of the users has blocked the other");
+
             request.Status = accept ? FriendshipStatus.Accepted : FriendshipStatus.Rejected;
             request.UpdatedAt = DateTime.UtcNow;
-            await _friendRequestRepository.UpdateAsync(request);
 
             if (accept)
             {
                 var existingFriendship = await _friendshipRepository.GetByUsersAsync(request.RequesterId, request.RecipientId);
                 if (existingFriendship == null)
                 {
+                    var userAId = Math.Min(request.RequesterId, request.RecipientId);
+                    var userBId = Math.Max(request.RequesterId, request.RecipientId);
+
                     await _friendshipRepository.AddAsync(new Friendship
                     {
-                        UserAId = request.RequesterId,
-                        UserBId = request.RecipientId
+                        UserAId = userAId,
+                        UserBId = userBId
                     });
                 }
             }
 
+            await _friendRequestRepository.UpdateAsync(request);
             return request;
         }
 
@@ -109,7 +97,7 @@ namespace Void.Services
                 Id = f.Id,
                 UserId = userId,
                 FriendId = f.UserAId == userId ? f.UserBId : f.UserAId,
-                FriendUsername = f.UserAId == userId ? f.UserB.UserName : f.UserA.UserName,
+                FriendUsername = (f.UserAId == userId ? f.UserB.UserName : f.UserA.UserName) ?? string.Empty,
                 Status = FriendshipStatus.Accepted,
                 CreatedAt = f.CreatedAt
             }).ToList();
@@ -124,7 +112,7 @@ namespace Void.Services
                 Id = r.Id,
                 UserId = r.RequesterId,
                 FriendId = r.RecipientId,
-                FriendUsername = r.Requester.UserName,
+                FriendUsername = r.Requester.UserName ?? string.Empty,
                 Status = r.Status,
                 CreatedAt = r.CreatedAt
             }).ToList();

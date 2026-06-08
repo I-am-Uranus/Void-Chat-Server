@@ -9,7 +9,7 @@ namespace Void.Models
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
 
-        public virtual User Requester { get; set; }
-        public virtual User Recipient { get; set; }
+        public virtual User Requester { get; set; } = null!;
+        public virtual User Recipient { get; set; } = null!;
     }
 }

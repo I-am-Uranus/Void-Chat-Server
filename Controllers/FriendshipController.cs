@@ -30,9 +30,9 @@ namespace Void.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                var friendship = await _friendshipService.SendFriendRequest(userId, request.FriendId);
+                var friendRequest = await _friendshipService.SendFriendRequest(userId, request.FriendId);
 
-                return Ok(new { message = "Friend request sent", friendshipId = friendship.Id });
+                return Ok(new { message = "Friend request sent", friendRequestId = friendRequest.Id });
             }
             catch (ArgumentException ex)
             {
@@ -51,10 +51,11 @@ namespace Void.Controllers
             try
             {
                 var userId = GetCurrentUserId();
-                var friendship = await _friendshipService.RespondToFriendRequest(response.FriendshipId, userId, response.Accept);
+                var requestId = response.RequestId != 0 ? response.RequestId : response.FriendshipId;
+                var friendRequest = await _friendshipService.RespondToFriendRequest(requestId, userId, response.Accept);
 
                 var message = response.Accept ? "Friend request accepted" : "Friend request declined";
-                return Ok(new { message, friendshipId = friendship.Id });
+                return Ok(new { message, friendRequestId = friendRequest.Id });
             }
             catch (ArgumentException ex)
             {
