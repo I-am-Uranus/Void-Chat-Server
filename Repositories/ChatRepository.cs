@@ -30,6 +30,11 @@ namespace Void.Repositories
             await _context.SaveChangesAsync();
         }
 
+        public async Task<Chat?> GetByIdAsync(int id)
+        {
+            return await _context.Chats.FindAsync(id);
+        }
+
         public async Task UpdateAsync(Chat chat)
         {
             _context.Chats.Update(chat);

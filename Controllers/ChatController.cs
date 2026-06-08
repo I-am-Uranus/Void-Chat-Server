@@ -42,4 +42,19 @@ public class ChatController : ControllerBase
         var result = await _chatService.SendMessageAsync(chatDto);
         return Ok(result);
     }
+
+    [HttpPost("seen/conversation")]
+    public async Task<IActionResult> MarkConversationSeen(int viewerId, int otherUserId)
+    {
+        var count = await _chatService.MarkConversationAsSeen(viewerId, otherUserId);
+        return Ok(new { seen = count });
+    }
+
+    [HttpPost("seen/message/{messageId}")]
+    public async Task<IActionResult> MarkMessageSeen(int messageId, [FromQuery] int viewerId)
+    {
+        var ok = await _chatService.MarkMessageAsSeen(messageId, viewerId);
+        if (!ok) return NotFound(new { message = "Message not found or not authorized" });
+        return Ok(new { message = "Message marked as seen" });
+    }
 }
