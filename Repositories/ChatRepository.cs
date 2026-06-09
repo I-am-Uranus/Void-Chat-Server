@@ -18,8 +18,9 @@ namespace Void.Repositories
             return await _context.Chats
                 .Include(c => c.Sender)
                 .Include(c => c.Receiver)
-                .Where(c => (c.SenderId == user1 && c.ReceiverId == user2) ||
-                            (c.SenderId == user2 && c.ReceiverId == user1))
+                .Where(c =>
+                    (c.SenderId == user1 && c.ReceiverId == user2) ||
+                    (c.SenderId == user2 && c.ReceiverId == user1))
                 .OrderBy(c => c.Timestamp)
                 .ToListAsync();
         }
@@ -32,12 +33,20 @@ namespace Void.Repositories
 
         public async Task<Chat?> GetByIdAsync(int id)
         {
-            return await _context.Chats.FindAsync(id);
+            return await _context.Chats
+                .Include(c => c.Sender)
+                .Include(c => c.Receiver)
+                .FirstOrDefaultAsync(c => c.Id == id);
         }
 
         public async Task UpdateAsync(Chat chat)
         {
             _context.Chats.Update(chat);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task SaveChangesAsync()
+        {
             await _context.SaveChangesAsync();
         }
     }

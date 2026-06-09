@@ -21,6 +21,14 @@ namespace Void.Repositories
                 .FirstOrDefaultAsync(ub => ub.BlockerId == blockerId && ub.BlockedId == blockedId);
         }
 
+        public async Task<List<UserBlock>> GetBlockedUsersForUserAsync(int userId)
+        {
+            return await _context.UserBlocks
+                .Include(ub => ub.Blocked)
+                .Where(ub => ub.BlockerId == userId)
+                .ToListAsync();
+        }
+
         public async Task<bool> IsBlockedBetweenUsersAsync(int userAId, int userBId)
         {
             return await _context.UserBlocks.AnyAsync(ub =>

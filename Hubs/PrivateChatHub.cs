@@ -2,20 +2,20 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Claims;
-using Void.Database;
-using Void.Models;
+using Void.DTOs;
+using Void.Services;
 
 namespace Void.Hubs
 {
     public class PrivateChatHub : Hub
     {
-        private readonly DatabaseContext _context;
+        private readonly ChatService _chatService;
 
         private static readonly ConcurrentDictionary<int, HashSet<string>> ConnectedUsers = new();
 
-        public PrivateChatHub(DatabaseContext context)
+        public PrivateChatHub(ChatService chatService)
         {
-            _context = context;
+            _chatService = chatService;
         }
 
         public override async Task OnConnectedAsync()
@@ -64,31 +64,32 @@ namespace Void.Hubs
         }
 
 
-        public async Task SendPrivateMessage(int receiverId, string message)
+        public async Task SendPrivateMessage(PrivateMessageCreateDTO messageDto)
         {
             var senderId = GetUserIdFromClaims();
-            if (!senderId.HasValue) return;
+            if (!senderId.HasValue)
+            {
+                throw new HubException("User not authenticated.");
+            }
 
-            var chat = new Chat
+            if (messageDto.ReceiverId <= 0)
+            {
+                throw new HubException("Receiver is required.");
+            }
+
+            if (string.IsNullOrWhiteSpace(messageDto.Content) &&
+                string.IsNullOrWhiteSpace(messageDto.ImageData))
+            {
+                throw new HubException("Message cannot be empty.");
+            }
+
+            await _chatService.SendMessageAsync(new ChatCreateDTO
             {
                 SenderId = senderId.Value,
-                ReceiverId = receiverId,
-                Content = message,
-                Timestamp = DateTime.UtcNow,
-                IsRead = false
-            };
-
-            _context.Chats.Add(chat);
-            await _context.SaveChangesAsync();
-
-            await Clients.User(receiverId.ToString()).SendAsync("ReceiveMessage", new
-            {
-                chat.Id,
-                chat.SenderId,
-                chat.ReceiverId,
-                chat.Content,
-                chat.Timestamp,
-                chat.IsRead
+                ReceiverId = messageDto.ReceiverId,
+                Content = messageDto.Content,
+                ImageData = messageDto.ImageData,
+                ImageMimeType = messageDto.ImageMimeType
             });
         }
     }

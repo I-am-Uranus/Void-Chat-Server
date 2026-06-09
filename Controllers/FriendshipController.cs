@@ -68,6 +68,9 @@ namespace Void.Controllers
         }
 
         [HttpGet]
+        [HttpGet("friends")]
+        [HttpGet("friendsList")]
+        [HttpGet("list")]
         public async Task<IActionResult> GetFriends()
         {
             var userId = GetCurrentUserId();
@@ -81,6 +84,14 @@ namespace Void.Controllers
             var userId = GetCurrentUserId();
             var requests = await _friendshipService.GetPendingRequests(userId);
             return Ok(requests);
+        }
+
+        [HttpGet("blocked")]
+        public async Task<IActionResult> GetBlockedUsers()
+        {
+            var userId = GetCurrentUserId();
+            var blockedUsers = await _friendshipService.GetBlockedUsers(userId);
+            return Ok(blockedUsers);
         }
 
         [HttpDelete("{friendId}")]
