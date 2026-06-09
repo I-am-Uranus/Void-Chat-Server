@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Void.Database;
 using Void.Models;
 
@@ -40,6 +40,16 @@ namespace Void.Repositories
                 .FirstOrDefaultAsync(g => g.Id == groupId);
         }
 
+        public async Task<List<Group>> GetGroupsForUserAsync(int userId)
+        {
+            return await _context.GroupMembers
+                .Where(gm => gm.UserId == userId)
+                .Include(gm => gm.Group)
+                .ThenInclude(g => g.Members)
+                .Select(gm => gm.Group)
+                .ToListAsync();
+        }
+
         public async Task AddMemberAsync(int groupId, int userId)
         {
             if (!await _context.GroupMembers.AnyAsync(m => m.GroupId == groupId && m.UserId == userId))
@@ -60,18 +70,28 @@ namespace Void.Repositories
             }
         }
 
-        public async Task<GroupMessage> AddMessageAsync(int groupId, int senderId, string content)
+        public async Task<GroupMessage> AddMessageAsync(
+            int groupId,
+            int senderId,
+            string content,
+            string? imageData = null,
+            string? imageMimeType = null)
         {
             var message = new GroupMessage
             {
                 GroupId = groupId,
                 SenderId = senderId,
                 Content = content,
+                ImageData = imageData,
+                ImageMimeType = imageMimeType,
                 Timestamp = DateTime.UtcNow
             };
             _context.GroupMessages.Add(message);
             await _context.SaveChangesAsync();
-            return message;
+
+            return await _context.GroupMessages
+                .Include(m => m.Sender)
+                .FirstAsync(m => m.Id == message.Id);
         }
 
         public async Task<List<GroupMessage>> GetMessagesAsync(int groupId)

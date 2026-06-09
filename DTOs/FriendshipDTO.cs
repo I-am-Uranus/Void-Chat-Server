@@ -12,6 +12,7 @@ namespace Void.DTOs
         public DateTime CreatedAt { get; set; }
         public string FriendDisplayName { get; set; } = string.Empty;
         public string? FriendProfilePicture { get; set; }
+        public DateTime? FriendLastActive { get; set; }
     }
 
     public class FriendshipRequestDTO

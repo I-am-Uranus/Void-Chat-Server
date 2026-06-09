@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -7,7 +7,8 @@ using AuthenticationService = Void.Services.AuthenticationService;
 
 namespace Void.Controllers
 {
-    [Route("api/[controller]")]
+    [Route("api/authentication")]
+    [Route("api/auth")]
     [ApiController]
     public class AuthenticationController : ControllerBase
     {
@@ -48,7 +49,7 @@ namespace Void.Controllers
             if (user == null)
                 return Unauthorized(new { message = "Invalid credentials" });
 
-            await SignInUserAsync(user.Id, user.UserName);
+            await SignInUserAsync(user.Id, user.UserName ?? string.Empty);
 
             return Ok(new
             {
@@ -64,12 +65,12 @@ namespace Void.Controllers
         public async Task<IActionResult> Logout()
         {
             await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
-
             return Ok(new { message = "Logged out" });
         }
 
+        [HttpGet("me")]
         [HttpGet("check")]
-        public IActionResult CheckAuth()
+        public IActionResult Me()
         {
             if (User.Identity?.IsAuthenticated != true)
                 return Unauthorized(new { message = "Not authenticated" });
@@ -92,7 +93,6 @@ namespace Void.Controllers
                 message = $"Hello {user.DisplayName ?? user.UserName}"
             });
         }
-
 
         private async Task SignInUserAsync(int userId, string username)
         {

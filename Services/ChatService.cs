@@ -1,7 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR;
-using System;
-using System.Linq;
-using System.Collections.Generic;
+using Microsoft.AspNetCore.SignalR;
+using System.Diagnostics;
 using Void.DTOs;
 using Void.Hubs;
 using Void.Models;
@@ -30,11 +28,14 @@ namespace Void.Services
                 .Where(c => c.ReceiverId == user1 && !c.IsRead.GetValueOrDefault())
                 .ToList();
 
-            foreach (var chat in unread)
+            if (unread.Count > 0)
             {
-                chat.IsRead = true;
-                await _repository.UpdateAsync(chat);
+                foreach (var chat in unread)
+                    chat.IsRead = true;
+
+                await _repository.SaveChangesAsync();
             }
+
             return chats.Select(ToChatWithUserDTO).ToList();
         }
 
@@ -53,12 +54,8 @@ namespace Void.Services
 
             await _repository.AddAsync(chat);
 
-            var savedChat = chat;
-            if (chat.SenderId.HasValue && chat.ReceiverId.HasValue)
-            {
-                var conversation = await _repository.GetConversationAsync(chat.SenderId.Value, chat.ReceiverId.Value);
-                savedChat = conversation.FirstOrDefault(c => c.Id == chat.Id) ?? chat;
-            }
+            // Reload the saved message with navigation properties (Sender, Receiver)
+            var savedChat = await _repository.GetByIdAsync(chat.Id) ?? chat;
 
             var result = ToChatWithUserDTO(savedChat);
 
@@ -73,15 +70,21 @@ namespace Void.Services
                 await _hub.Clients.User(savedChat.ReceiverId.Value.ToString())
                     .SendAsync("ReceiveMessage", result);
 
-                var previewMessage = BuildPreviewMessage(savedChat);
-                await _notificationService.CreateAsync(
-                    recipientUserId: savedChat.ReceiverId.Value,
-                    senderUserId: savedChat.SenderId,
-                    type: NotificationTypes.Chat,
-                    title: "New message",
-                    message: previewMessage,
-                    relatedEntityId: savedChat.Id
-                );
+                try
+                {
+                    var preview = BuildPreviewMessage(savedChat);
+                    await _notificationService.CreateAsync(
+                        recipientUserId: savedChat.ReceiverId.Value,
+                        senderUserId: savedChat.SenderId,
+                        type: NotificationTypes.Chat,
+                        title: "New message",
+                        message: preview,
+                        relatedEntityId: savedChat.Id);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"ChatService notification error: {ex.Message}");
+                }
             }
 
             return result;
@@ -90,22 +93,29 @@ namespace Void.Services
         public async Task<int> MarkConversationAsSeen(int viewerId, int otherUserId)
         {
             var chats = await _repository.GetConversationAsync(viewerId, otherUserId);
+            var unread = chats
+                .Where(c => c.ReceiverId == viewerId && !c.IsRead.GetValueOrDefault())
+                .ToList();
 
-            var unread = chats.Where(c => c.ReceiverId == viewerId && !c.IsRead.GetValueOrDefault()).ToList();
+            if (unread.Count == 0)
+                return 0;
+
+            foreach (var chat in unread)
+                chat.IsRead = true;
+
+            await _repository.SaveChangesAsync();
+
             foreach (var chat in unread)
             {
-                chat.IsRead = true;
-                await _repository.UpdateAsync(chat);
-                // notify sender that this message was seen
                 if (chat.SenderId.HasValue)
-                    await _hub.Clients.User(chat.SenderId.Value.ToString()).SendAsync("MessageSeen", new { MessageId = chat.Id, SeenBy = viewerId });
+                {
+                    await _hub.Clients.User(chat.SenderId.Value.ToString())
+                        .SendAsync("MessageSeen", new { MessageId = chat.Id, SeenBy = viewerId });
+                }
             }
 
-            if (unread.Count > 0)
-            {
-                // notify the other user that their messages were seen by viewer
-                await _hub.Clients.User(otherUserId.ToString()).SendAsync("MessagesSeen", new { ViewerId = viewerId, Count = unread.Count });
-            }
+            await _hub.Clients.User(otherUserId.ToString())
+                .SendAsync("MessagesSeen", new { ViewerId = viewerId, Count = unread.Count });
 
             return unread.Count;
         }
@@ -115,7 +125,6 @@ namespace Void.Services
             var chat = await _repository.GetByIdAsync(messageId);
             if (chat == null) return false;
 
-            // only the receiver can mark as seen
             if (chat.ReceiverId != viewerId) return false;
 
             if (chat.IsRead.GetValueOrDefault()) return true;
@@ -125,7 +134,8 @@ namespace Void.Services
 
             if (chat.SenderId.HasValue)
             {
-                await _hub.Clients.User(chat.SenderId.Value.ToString()).SendAsync("MessageSeen", new { MessageId = chat.Id, SeenBy = viewerId });
+                await _hub.Clients.User(chat.SenderId.Value.ToString())
+                    .SendAsync("MessageSeen", new { MessageId = chat.Id, SeenBy = viewerId });
             }
 
             return true;
@@ -136,7 +146,7 @@ namespace Void.Services
             return new ChatWithUserDTO
             {
                 Id = chat.Id,
-                Content = chat.Content ?? "",
+                Content = chat.Content ?? string.Empty,
                 Timestamp = chat.Timestamp ?? DateTime.UtcNow,
                 SenderId = chat.SenderId ?? 0,
                 SenderName = chat.Sender?.UserName ?? "Unknown",
@@ -154,13 +164,9 @@ namespace Void.Services
         {
             var content = chat.Content ?? string.Empty;
             if (!string.IsNullOrWhiteSpace(content))
-            {
                 return content[..Math.Min(200, content.Length)];
-            }
 
-            return string.IsNullOrWhiteSpace(chat.ImageData)
-                ? string.Empty
-                : "Sent you an image.";
+            return string.IsNullOrWhiteSpace(chat.ImageData) ? string.Empty : "Sent you an image.";
         }
     }
 }

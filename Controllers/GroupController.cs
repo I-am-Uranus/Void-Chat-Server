@@ -1,112 +1,158 @@
-﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using Void.Database;
-using Void.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
+using Void.DTOs;
 using Void.Services;
 
 [ApiController]
 [Route("api/groups")]
+[Authorize]
 public class GroupController : ControllerBase
 {
-    private readonly DatabaseContext _context;
-    private readonly NotificationService _notificationService;
+    private readonly GroupService _groupService;
 
-    public GroupController(DatabaseContext context, NotificationService notificationService)
+    public GroupController(GroupService groupService)
     {
-        _context = context;
-        _notificationService = notificationService;
+        _groupService = groupService;
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateGroup([FromBody] Group group)
+    public async Task<IActionResult> CreateGroup([FromBody] CreateGroupDTO dto)
     {
-        _context.Groups.Add(group);
-        await _context.SaveChangesAsync();
-        return Ok(group);
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            return BadRequest(new { error = "Group name is required." });
+
+        var currentUserId = GetCurrentUserId();
+
+        // Ensure creator is in the member list
+        if (!dto.MemberIds.Contains(currentUserId))
+            dto.MemberIds.Insert(0, currentUserId);
+
+        try
+        {
+            var group = await _groupService.CreateGroupAsync(dto.Name, dto.MemberIds);
+            return Ok(new { id = group.Id, name = group.Name });
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetMyGroups()
+    {
+        var userId = GetCurrentUserId();
+        var groups = await _groupService.GetGroupsForUserAsync(userId);
+        return Ok(groups.Select(g => new { id = g.Id, name = g.Name, memberCount = g.Members.Count }));
     }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetGroup(int id)
     {
-        var group = await _context.Groups
-            .Include(g => g.Members).ThenInclude(m => m.User)
-            .Include(g => g.Messages).ThenInclude(m => m.Sender)
-            .FirstOrDefaultAsync(g => g.Id == id);
+        var group = await _groupService.GetGroupAsync(id);
+        if (group == null) return NotFound(new { error = "Group not found." });
 
-        if (group == null) return NotFound();
-        return Ok(group);
+        return Ok(new
+        {
+            id = group.Id,
+            name = group.Name,
+            members = group.Members.Select(m => new
+            {
+                userId = m.UserId,
+                userName = m.User?.UserName,
+                displayName = m.User?.DisplayName,
+                profilePicture = m.User?.ProfilePicture
+            })
+        });
     }
 
     [HttpPost("{id}/members")]
     public async Task<IActionResult> AddMember(int id, [FromBody] int userId)
     {
-        if (!await _context.GroupMembers.AnyAsync(m => m.GroupId == id && m.UserId == userId))
+        try
         {
-            _context.GroupMembers.Add(new GroupMember { GroupId = id, UserId = userId });
-            await _context.SaveChangesAsync();
-            // notify the user they were added to the group
-            await _notificationService.SendToUser(userId, new { Type = "AddedToGroup", GroupId = id });
+            await _groupService.AddMemberAsync(id, userId);
+            return Ok(new { message = "Member added." });
         }
-        return Ok();
+        catch (Exception ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpDelete("{id}/members/{userId}")]
     public async Task<IActionResult> RemoveMember(int id, int userId)
     {
-        var member = await _context.GroupMembers.FirstOrDefaultAsync(m => m.GroupId == id && m.UserId == userId);
-        if (member != null)
-        {
-            _context.GroupMembers.Remove(member);
-            await _context.SaveChangesAsync();
-        }
-        return Ok();
+        await _groupService.RemoveMemberAsync(id, userId);
+        return Ok(new { message = "Member removed." });
     }
 
     [HttpGet("{id}/messages")]
     public async Task<IActionResult> GetMessages(int id)
     {
-        var messages = await _context.GroupMessages
-            .Include(m => m.Sender)
-            .Where(m => m.GroupId == id)
-            .OrderBy(m => m.Timestamp)
-            .ToListAsync();
+        var messages = await _groupService.GetMessagesAsync(id);
         return Ok(messages);
     }
 
     [HttpPost("{id}/messages")]
-    public async Task<IActionResult> SendMessage(int id, [FromBody] GroupMessage message)
+    public async Task<IActionResult> SendMessage(int id, [FromBody] SendGroupMessageDTO dto)
     {
-        message.GroupId = id;
-        message.Timestamp = DateTime.UtcNow;
-        _context.GroupMessages.Add(message);
-        await _context.SaveChangesAsync();
-        // notify all group members (except sender) about new group message
-        var memberIds = await _context.GroupMembers
-            .Where(m => m.GroupId == id && m.UserId != message.SenderId)
-            .Select(m => m.UserId)
-            .ToListAsync();
+        var senderId = GetCurrentUserId();
 
-        foreach (var memberId in memberIds)
+        if (string.IsNullOrWhiteSpace(dto.Content) && string.IsNullOrWhiteSpace(dto.ImageData))
+            return BadRequest(new { error = "Message content or image is required." });
+
+        try
         {
-            await _notificationService.SendToUser(memberId, new { Type = "NewGroupMessage", GroupId = id, From = message.SenderId, MessageId = message.Id, Preview = (message.Content ?? string.Empty).Substring(0, Math.Min(200, (message.Content ?? string.Empty).Length)) });
+            var result = await _groupService.SendMessageAsync(id, senderId, dto.Content ?? string.Empty, dto.ImageData, dto.ImageMimeType);
+            return Ok(result);
         }
-
-        return Ok(message);
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid();
+        }
     }
 
-    /// <summary>
-    /// Sends an image as base64 in a group chat.
-    /// </summary>
-    /// <param name="id">The ID of the group.</param>
-    /// <param name="imageMessage">The group message containing base64 image data and mime type.</param>
-    /// <returns>The created group message with image data.</returns>
     [HttpPost("{id}/messages/image")]
-    public async Task<IActionResult> SendImage(int id, [FromBody] GroupMessage imageMessage)
+    public async Task<IActionResult> SendImage(int id, [FromBody] SendGroupMessageDTO dto)
     {
-        imageMessage.GroupId = id;
-        imageMessage.Timestamp = DateTime.UtcNow;
-        _context.GroupMessages.Add(imageMessage);
-        await _context.SaveChangesAsync();
-        return Ok(imageMessage);
+        var senderId = GetCurrentUserId();
+
+        if (string.IsNullOrWhiteSpace(dto.ImageData))
+            return BadRequest(new { error = "Image data is required." });
+
+        try
+        {
+            var result = await _groupService.SendMessageAsync(id, senderId, string.Empty, dto.ImageData, dto.ImageMimeType);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return NotFound(new { error = ex.Message });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Forbid();
+        }
     }
+
+    private int GetCurrentUserId()
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (claim == null || !int.TryParse(claim.Value, out var id))
+            throw new UnauthorizedAccessException("User not authenticated.");
+        return id;
+    }
+}
+
+public class SendGroupMessageDTO
+{
+    public string? Content { get; set; }
+    public string? ImageData { get; set; }
+    public string? ImageMimeType { get; set; }
 }

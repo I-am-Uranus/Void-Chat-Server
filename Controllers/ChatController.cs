@@ -1,9 +1,12 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 using Void.DTOs;
 using Void.Services;
 
 [ApiController]
 [Route("api/chats")]
+[Authorize]
 public class ChatController : ControllerBase
 {
     private readonly ChatService _chatService;
@@ -14,8 +17,12 @@ public class ChatController : ControllerBase
     }
 
     [HttpGet("conversation")]
-    public async Task<IActionResult> GetConversation(int user1, int user2)
+    public async Task<IActionResult> GetConversation([FromQuery] int user1, [FromQuery] int user2)
     {
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId != user1 && currentUserId != user2)
+            return Forbid();
+
         var chats = await _chatService.GetConversationAsync(user1, user2);
         return Ok(chats);
     }
@@ -23,38 +30,46 @@ public class ChatController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> SendMessage([FromBody] ChatCreateDTO chatDto)
     {
+        chatDto.SenderId = GetCurrentUserId();
         var result = await _chatService.SendMessageAsync(chatDto);
         return Ok(result);
     }
 
-    /// <summary>
-    /// Sends an image as base64 in a private chat.
-    /// </summary>
-    /// <param name="user1">The ID of the first user (sender).</param>
-    /// <param name="user2">The ID of the second user (receiver).</param>
-    /// <param name="chatDto">The chat message DTO containing base64 image data.</param>
-    /// <returns>The created chat message with image data.</returns>
     [HttpPost("image/{user1}/{user2}")]
     public async Task<IActionResult> SendImage(int user1, int user2, [FromBody] ChatCreateDTO chatDto)
     {
-        chatDto.SenderId = user1;
-        chatDto.ReceiverId = user2;
+        var currentUserId = GetCurrentUserId();
+        if (currentUserId != user1 && currentUserId != user2)
+            return Forbid();
+
+        chatDto.SenderId = currentUserId;
+        chatDto.ReceiverId = currentUserId == user1 ? user2 : user1;
         var result = await _chatService.SendMessageAsync(chatDto);
         return Ok(result);
     }
 
     [HttpPost("seen/conversation")]
-    public async Task<IActionResult> MarkConversationSeen(int viewerId, int otherUserId)
+    public async Task<IActionResult> MarkConversationSeen([FromQuery] int otherUserId)
     {
+        var viewerId = GetCurrentUserId();
         var count = await _chatService.MarkConversationAsSeen(viewerId, otherUserId);
         return Ok(new { seen = count });
     }
 
     [HttpPost("seen/message/{messageId}")]
-    public async Task<IActionResult> MarkMessageSeen(int messageId, [FromQuery] int viewerId)
+    public async Task<IActionResult> MarkMessageSeen(int messageId)
     {
+        var viewerId = GetCurrentUserId();
         var ok = await _chatService.MarkMessageAsSeen(messageId, viewerId);
         if (!ok) return NotFound(new { message = "Message not found or not authorized" });
         return Ok(new { message = "Message marked as seen" });
+    }
+
+    private int GetCurrentUserId()
+    {
+        var claim = User.FindFirst(ClaimTypes.NameIdentifier);
+        if (claim == null || !int.TryParse(claim.Value, out var id))
+            throw new UnauthorizedAccessException("User not authenticated.");
+        return id;
     }
 }

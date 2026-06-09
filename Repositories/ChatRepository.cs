@@ -25,18 +25,18 @@ namespace Void.Repositories
                 .ToListAsync();
         }
 
-        public async Task AddAsync(Chat chat)
-        {
-            _context.Chats.Add(chat);
-            await _context.SaveChangesAsync();
-        }
-
         public async Task<Chat?> GetByIdAsync(int id)
         {
             return await _context.Chats
                 .Include(c => c.Sender)
                 .Include(c => c.Receiver)
                 .FirstOrDefaultAsync(c => c.Id == id);
+        }
+
+        public async Task AddAsync(Chat chat)
+        {
+            _context.Chats.Add(chat);
+            await _context.SaveChangesAsync();
         }
 
         public async Task UpdateAsync(Chat chat)

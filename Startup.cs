@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
 using Void.Database;
@@ -18,12 +19,6 @@ namespace Void
 
             var app = builder.Build();
 
-            using (var scope = app.Services.CreateScope())
-            {
-                var db = scope.ServiceProvider.GetRequiredService<DatabaseContext>();
-                db.Database.EnsureCreated();
-            }
-
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();
@@ -33,8 +28,8 @@ namespace Void
             {
                 app.UseHttpsRedirection();
             }
-            app.UseWebSockets();
 
+            app.UseWebSockets();
             app.UseRouting();
             app.UseCors("AllowReact");
 
@@ -46,11 +41,13 @@ namespace Void
 
             app.UseAuthentication();
             app.UseAuthorization();
+
             app.MapHub<GroupChatHub>("/groupChatHub");
             app.MapHub<PrivateChatHub>("/privateChatHub");
             app.MapHub<NotificationHub>("/notificationHub");
 
             app.MapControllers();
+
             InitializeDatabase(app);
 
             app.Run();
@@ -63,11 +60,11 @@ namespace Void
             services.AddSwaggerGen();
             services.AddSignalR();
 
-            services.AddScoped<UserService>();
-            services.AddScoped<NotificationService>();
+            // Route Clients.User(id) through NameIdentifier claim (user id)
+            services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
+
             services.AddDbContext<DatabaseContext>(options =>
                 options.UseSqlite("Data Source=Void.db"));
-
 
             services.AddCors(options =>
             {
@@ -78,38 +75,48 @@ namespace Void
                                .AllowAnyHeader()
                                .AllowAnyMethod()
                                .AllowCredentials();
-
                     });
             });
-
 
             services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
               .AddCookie(options =>
               {
                   options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
                   options.SlidingExpiration = true;
-
                   options.Cookie.SameSite = SameSiteMode.None;
                   options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
                   options.Cookie.HttpOnly = true;
+                  options.Events.OnRedirectToLogin = ctx =>
+                  {
+                      ctx.Response.StatusCode = 401;
+                      return Task.CompletedTask;
+                  };
+                  options.Events.OnRedirectToAccessDenied = ctx =>
+                  {
+                      ctx.Response.StatusCode = 403;
+                      return Task.CompletedTask;
+                  };
               });
 
             services.AddAuthorization();
 
-            services.AddScoped<AuthenticationService>();
-            services.AddScoped<UserService>();
-            services.AddScoped<FriendshipService>();
-            services.AddScoped<ChatService>();
-
+            // Repositories
             services.AddScoped<UserRepository>();
             services.AddScoped<FriendshipRepository>();
             services.AddScoped<FriendRequestRepository>();
             services.AddScoped<BlockRepository>();
             services.AddScoped<ChatRepository>();
+            services.AddScoped<GroupRepository>();
 
-
-
+            // Services
+            services.AddScoped<UserService>();
+            services.AddScoped<AuthenticationService>();
+            services.AddScoped<FriendshipService>();
+            services.AddScoped<ChatService>();
+            services.AddScoped<NotificationService>();
+            services.AddScoped<GroupService>();
         }
+
         private static void InitializeDatabase(WebApplication app)
         {
             using var scope = app.Services.CreateScope();
@@ -121,6 +128,7 @@ namespace Void
             EnsureFriendRequestTableSchema(context);
             EnsureNotificationTableSchema(context);
             EnsureChatTableSchema(context);
+            EnsureGroupMessageTableSchema(context);
         }
 
         private static void EnsureUserDisplayNameColumn(DatabaseContext context)
@@ -128,9 +136,7 @@ namespace Void
             var connection = context.Database.GetDbConnection();
 
             if (connection.State != ConnectionState.Open)
-            {
                 connection.Open();
-            }
 
             using var checkCommand = connection.CreateCommand();
             checkCommand.CommandText = "PRAGMA table_info('Users');";
@@ -149,9 +155,7 @@ namespace Void
             }
 
             if (!hasDisplayName)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN DisplayName TEXT;");
-            }
         }
 
         private static void EnsureFriendshipTableSchema(DatabaseContext context)
@@ -159,9 +163,7 @@ namespace Void
             var connection = context.Database.GetDbConnection();
 
             if (connection.State != ConnectionState.Open)
-            {
                 connection.Open();
-            }
 
             using var checkCommand = connection.CreateCommand();
             checkCommand.CommandText = "PRAGMA table_info('Friendships');";
@@ -180,21 +182,13 @@ namespace Void
                     var columnName = reader["name"]?.ToString();
 
                     if (string.Equals(columnName, "UserAId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasUserAId = true;
-                    }
                     else if (string.Equals(columnName, "UserBId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasUserBId = true;
-                    }
                     else if (string.Equals(columnName, "UserId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasLegacyUserId = true;
-                    }
                     else if (string.Equals(columnName, "FriendId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasLegacyFriendId = true;
-                    }
                 }
             }
 
@@ -223,9 +217,7 @@ namespace Void
             }
 
             if (!(hasLegacyUserId && hasLegacyFriendId))
-            {
                 throw new InvalidOperationException("Friendships table schema is incompatible with the current application model.");
-            }
 
             using var transaction = context.Database.BeginTransaction();
 
@@ -259,9 +251,7 @@ namespace Void
             var connection = context.Database.GetDbConnection();
 
             if (connection.State != ConnectionState.Open)
-            {
                 connection.Open();
-            }
 
             using var checkCommand = connection.CreateCommand();
             checkCommand.CommandText = "PRAGMA table_info('FriendRequests');";
@@ -281,25 +271,15 @@ namespace Void
                     var columnName = reader["name"]?.ToString();
 
                     if (string.Equals(columnName, "RequesterId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasRequesterId = true;
-                    }
                     else if (string.Equals(columnName, "RecipientId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasRecipientId = true;
-                    }
                     else if (string.Equals(columnName, "Status", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasStatus = true;
-                    }
                     else if (string.Equals(columnName, "CreatedAt", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasCreatedAt = true;
-                    }
                     else if (string.Equals(columnName, "UpdatedAt", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasUpdatedAt = true;
-                    }
                 }
             }
 
@@ -312,19 +292,15 @@ namespace Void
             if (hasRequesterId && hasRecipientId && hasStatus && hasCreatedAt)
             {
                 if (!hasUpdatedAt)
-                {
                     context.Database.ExecuteSqlRaw("ALTER TABLE FriendRequests ADD COLUMN UpdatedAt TEXT;");
-                }
 
                 CreateFriendRequestsIndexes(context);
                 return;
             }
 
             using var transaction = context.Database.BeginTransaction();
-
             context.Database.ExecuteSqlRaw("DROP TABLE FriendRequests;");
             CreateFriendRequestsTable(context);
-
             transaction.Commit();
         }
 
@@ -357,9 +333,7 @@ namespace Void
             var connection = context.Database.GetDbConnection();
 
             if (connection.State != ConnectionState.Open)
-            {
                 connection.Open();
-            }
 
             using var checkCommand = connection.CreateCommand();
             checkCommand.CommandText = "PRAGMA table_info('Notifications');";
@@ -382,37 +356,21 @@ namespace Void
                     var columnName = reader["name"]?.ToString();
 
                     if (string.Equals(columnName, "RecipientUserId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasRecipientUserId = true;
-                    }
                     else if (string.Equals(columnName, "SenderUserId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasSenderUserId = true;
-                    }
                     else if (string.Equals(columnName, "Type", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasType = true;
-                    }
                     else if (string.Equals(columnName, "Title", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasTitle = true;
-                    }
                     else if (string.Equals(columnName, "Message", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasMessage = true;
-                    }
                     else if (string.Equals(columnName, "IsRead", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasIsRead = true;
-                    }
                     else if (string.Equals(columnName, "CreatedAt", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasCreatedAt = true;
-                    }
                     else if (string.Equals(columnName, "RelatedEntityId", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasRelatedEntityId = true;
-                    }
                 }
             }
 
@@ -423,44 +381,21 @@ namespace Void
             }
 
             if (!hasRecipientUserId)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Notifications ADD COLUMN RecipientUserId INTEGER NOT NULL DEFAULT 0;");
-            }
-
             if (!hasSenderUserId)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Notifications ADD COLUMN SenderUserId INTEGER NULL;");
-            }
-
             if (!hasType)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Notifications ADD COLUMN Type TEXT NOT NULL DEFAULT 'Chat';");
-            }
-
             if (!hasTitle)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Notifications ADD COLUMN Title TEXT NOT NULL DEFAULT '';");
-            }
-
             if (!hasMessage)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Notifications ADD COLUMN Message TEXT NOT NULL DEFAULT '';");
-            }
-
             if (!hasIsRead)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Notifications ADD COLUMN IsRead INTEGER NOT NULL DEFAULT 0;");
-            }
-
             if (!hasCreatedAt)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Notifications ADD COLUMN CreatedAt TEXT NOT NULL DEFAULT '1970-01-01 00:00:00';");
-            }
-
             if (!hasRelatedEntityId)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Notifications ADD COLUMN RelatedEntityId INTEGER NULL;");
-            }
 
             CreateNotificationsIndexes(context);
         }
@@ -495,9 +430,7 @@ namespace Void
             var connection = context.Database.GetDbConnection();
 
             if (connection.State != ConnectionState.Open)
-            {
                 connection.Open();
-            }
 
             using var checkCommand = connection.CreateCommand();
             checkCommand.CommandText = "PRAGMA table_info('Chats');";
@@ -512,25 +445,53 @@ namespace Void
                     var columnName = reader["name"]?.ToString();
 
                     if (string.Equals(columnName, "ImageData", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasImageData = true;
-                    }
                     else if (string.Equals(columnName, "ImageMimeType", StringComparison.OrdinalIgnoreCase))
-                    {
                         hasImageMimeType = true;
-                    }
                 }
             }
 
             if (!hasImageData)
-            {
                 context.Database.ExecuteSqlRaw("ALTER TABLE Chats ADD COLUMN ImageData TEXT NULL;");
+            if (!hasImageMimeType)
+                context.Database.ExecuteSqlRaw("ALTER TABLE Chats ADD COLUMN ImageMimeType TEXT NULL;");
+        }
+
+        private static void EnsureGroupMessageTableSchema(DatabaseContext context)
+        {
+            var connection = context.Database.GetDbConnection();
+
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
+
+            using var checkCommand = connection.CreateCommand();
+            checkCommand.CommandText = "PRAGMA table_info('GroupMessages');";
+
+            var hasRows = false;
+            var hasImageData = false;
+            var hasImageMimeType = false;
+
+            using (var reader = checkCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    hasRows = true;
+                    var columnName = reader["name"]?.ToString();
+
+                    if (string.Equals(columnName, "ImageData", StringComparison.OrdinalIgnoreCase))
+                        hasImageData = true;
+                    else if (string.Equals(columnName, "ImageMimeType", StringComparison.OrdinalIgnoreCase))
+                        hasImageMimeType = true;
+                }
             }
 
+            if (!hasRows)
+                return; // Table will be created by EnsureCreated with the correct schema
+
+            if (!hasImageData)
+                context.Database.ExecuteSqlRaw("ALTER TABLE GroupMessages ADD COLUMN ImageData TEXT NULL;");
             if (!hasImageMimeType)
-            {
-                context.Database.ExecuteSqlRaw("ALTER TABLE Chats ADD COLUMN ImageMimeType TEXT NULL;");
-            }
+                context.Database.ExecuteSqlRaw("ALTER TABLE GroupMessages ADD COLUMN ImageMimeType TEXT NULL;");
         }
     }
 }
