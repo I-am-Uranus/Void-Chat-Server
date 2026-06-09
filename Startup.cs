@@ -115,6 +115,7 @@ namespace Void
             services.AddScoped<ChatService>();
             services.AddScoped<NotificationService>();
             services.AddScoped<GroupService>();
+            services.AddScoped<SettingsService>();
         }
 
         private static void InitializeDatabase(WebApplication app)
@@ -124,6 +125,7 @@ namespace Void
 
             context.Database.EnsureCreated();
             EnsureUserDisplayNameColumn(context);
+            EnsureUserProfilePictureColumn(context);
             EnsureFriendshipTableSchema(context);
             EnsureFriendRequestTableSchema(context);
             EnsureNotificationTableSchema(context);
@@ -156,6 +158,33 @@ namespace Void
 
             if (!hasDisplayName)
                 context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN DisplayName TEXT;");
+        }
+
+        private static void EnsureUserProfilePictureColumn(DatabaseContext context)
+        {
+            var connection = context.Database.GetDbConnection();
+
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
+
+            using var checkCommand = connection.CreateCommand();
+            checkCommand.CommandText = "PRAGMA table_info('Users');";
+
+            var hasProfilePicture = false;
+            using (var reader = checkCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    if (string.Equals(reader["name"]?.ToString(), "ProfilePicture", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasProfilePicture = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!hasProfilePicture)
+                context.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN ProfilePicture TEXT;");
         }
 
         private static void EnsureFriendshipTableSchema(DatabaseContext context)
