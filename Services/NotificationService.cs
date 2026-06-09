@@ -71,7 +71,8 @@ namespace Void.Services
 
             if (normalizedType != NotificationTypes.All)
             {
-                query = query.Where(n => n.Type == normalizedType);
+                var storedTypes = NotificationTypes.GetStorageAliases(normalizedType);
+                query = query.Where(n => storedTypes.Contains(n.Type));
             }
 
             return await query
@@ -88,7 +89,8 @@ namespace Void.Services
 
             if (normalizedType != NotificationTypes.All)
             {
-                query = query.Where(n => n.Type == normalizedType);
+                var storedTypes = NotificationTypes.GetStorageAliases(normalizedType);
+                query = query.Where(n => storedTypes.Contains(n.Type));
             }
 
             return await query.CountAsync();
@@ -117,7 +119,8 @@ namespace Void.Services
 
             if (normalizedType != NotificationTypes.All)
             {
-                query = query.Where(n => n.Type == normalizedType);
+                var storedTypes = NotificationTypes.GetStorageAliases(normalizedType);
+                query = query.Where(n => storedTypes.Contains(n.Type));
             }
 
             var notifications = await query.ToListAsync();
@@ -133,10 +136,11 @@ namespace Void.Services
         public async Task<int> MarkRelatedAsReadAsync(int recipientUserId, string type, int relatedEntityId)
         {
             var normalizedType = NotificationTypes.Normalize(type);
+            var storedTypes = NotificationTypes.GetStorageAliases(normalizedType);
             var notifications = await _context.Notifications
                 .Where(n =>
                     n.RecipientUserId == recipientUserId &&
-                    n.Type == normalizedType &&
+                    storedTypes.Contains(n.Type) &&
                     n.RelatedEntityId == relatedEntityId &&
                     !n.IsRead)
                 .ToListAsync();
@@ -173,7 +177,8 @@ namespace Void.Services
 
             if (normalizedType != NotificationTypes.All)
             {
-                query = query.Where(n => n.Type == normalizedType);
+                var storedTypes = NotificationTypes.GetStorageAliases(normalizedType);
+                query = query.Where(n => storedTypes.Contains(n.Type));
             }
 
             var notifications = await query.ToListAsync();
