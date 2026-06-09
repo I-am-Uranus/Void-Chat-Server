@@ -104,20 +104,27 @@ namespace Void.Services
             return request;
         }
 
-        public async Task<List<FriendshipDTO>> GetFriends(int userId)
-        {
-            var friendships = await _friendshipRepository.GetFriendsForUserAsync(userId);
+       public async Task<List<FriendshipDTO>> GetFriends(int userId)
+{
+    var friendships = await _friendshipRepository.GetFriendsForUserAsync(userId);
 
-            return friendships.Select(f => new FriendshipDTO
-            {
-                Id = f.Id,
-                UserId = userId,
-                FriendId = f.UserAId == userId ? f.UserBId : f.UserAId,
-                FriendUsername = (f.UserAId == userId ? f.UserB.UserName : f.UserA.UserName) ?? string.Empty,
-                Status = FriendshipStatus.Accepted,
-                CreatedAt = f.CreatedAt
-            }).ToList();
-        }
+    return friendships.Select(f =>
+    {
+        var friend = f.UserAId == userId ? f.UserB : f.UserA;
+
+        return new FriendshipDTO
+        {
+            Id = f.Id,
+            UserId = userId,
+            FriendId = friend.Id,
+            FriendUsername = friend.UserName ?? string.Empty,
+            FriendDisplayName = friend.DisplayName ?? friend.UserName ?? "Unknown user",
+            FriendProfilePicture = friend.ProfilePicture,
+            Status = FriendshipStatus.Accepted,
+            CreatedAt = f.CreatedAt
+        };
+    }).ToList();
+}
 
         public async Task<List<FriendshipDTO>> GetPendingRequests(int userId)
         {

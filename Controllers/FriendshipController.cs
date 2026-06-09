@@ -68,6 +68,9 @@ namespace Void.Controllers
         }
 
         [HttpGet]
+        [HttpGet("friends")]
+        [HttpGet("friendsList")]
+        [HttpGet("list")]
         public async Task<IActionResult> GetFriends()
         {
             var userId = GetCurrentUserId();

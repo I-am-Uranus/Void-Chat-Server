@@ -10,6 +10,8 @@ namespace Void.DTOs
         public string FriendUsername { get; set; } = string.Empty;
         public FriendshipStatus Status { get; set; }
         public DateTime CreatedAt { get; set; }
+        public string FriendDisplayName { get; set; } = string.Empty;
+        public string? FriendProfilePicture { get; set; }
     }
 
     public class FriendshipRequestDTO
