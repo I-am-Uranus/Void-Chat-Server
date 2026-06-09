@@ -84,14 +84,15 @@ namespace Void
 
 
             services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-                    .AddCookie(options =>
-                    {
-                        options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
-                        options.SlidingExpiration = true;
-                        options.Cookie.SameSite = SameSiteMode.Strict;
-                        options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
-                        options.Cookie.HttpOnly = false;
-                    });
+              .AddCookie(options =>
+              {
+                  options.ExpireTimeSpan = TimeSpan.FromMinutes(30);
+                  options.SlidingExpiration = true;
+
+                  options.Cookie.SameSite = SameSiteMode.None;
+                  options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
+                  options.Cookie.HttpOnly = true;
+              });
 
             services.AddAuthorization();
 
@@ -119,6 +120,7 @@ namespace Void
             EnsureFriendshipTableSchema(context);
             EnsureFriendRequestTableSchema(context);
             EnsureNotificationTableSchema(context);
+            EnsureChatTableSchema(context);
         }
 
         private static void EnsureUserDisplayNameColumn(DatabaseContext context)
@@ -486,6 +488,49 @@ namespace Void
             context.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Notifications_RecipientUserId_CreatedAt ON Notifications (RecipientUserId, CreatedAt);");
             context.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Notifications_RecipientUserId_Type_CreatedAt ON Notifications (RecipientUserId, Type, CreatedAt);");
             context.Database.ExecuteSqlRaw("CREATE INDEX IF NOT EXISTS IX_Notifications_RecipientUserId_IsRead ON Notifications (RecipientUserId, IsRead);");
+        }
+
+        private static void EnsureChatTableSchema(DatabaseContext context)
+        {
+            var connection = context.Database.GetDbConnection();
+
+            if (connection.State != ConnectionState.Open)
+            {
+                connection.Open();
+            }
+
+            using var checkCommand = connection.CreateCommand();
+            checkCommand.CommandText = "PRAGMA table_info('Chats');";
+
+            var hasImageData = false;
+            var hasImageMimeType = false;
+
+            using (var reader = checkCommand.ExecuteReader())
+            {
+                while (reader.Read())
+                {
+                    var columnName = reader["name"]?.ToString();
+
+                    if (string.Equals(columnName, "ImageData", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasImageData = true;
+                    }
+                    else if (string.Equals(columnName, "ImageMimeType", StringComparison.OrdinalIgnoreCase))
+                    {
+                        hasImageMimeType = true;
+                    }
+                }
+            }
+
+            if (!hasImageData)
+            {
+                context.Database.ExecuteSqlRaw("ALTER TABLE Chats ADD COLUMN ImageData TEXT NULL;");
+            }
+
+            if (!hasImageMimeType)
+            {
+                context.Database.ExecuteSqlRaw("ALTER TABLE Chats ADD COLUMN ImageMimeType TEXT NULL;");
+            }
         }
     }
 }

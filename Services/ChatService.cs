@@ -26,21 +26,16 @@ namespace Void.Services
         {
             var chats = await _repository.GetConversationAsync(user1, user2);
 
-            var unread = chats.Where(c => c.ReceiverId == user1 && !c.IsRead.GetValueOrDefault()).ToList();
-            foreach (var chat in unread) chat.IsRead = true;
-            await Task.WhenAll(unread.Select(c => _repository.UpdateAsync(c)));
+            var unread = chats
+                .Where(c => c.ReceiverId == user1 && !c.IsRead.GetValueOrDefault())
+                .ToList();
 
-            return chats.Select(c => new ChatWithUserDTO
+            foreach (var chat in unread)
             {
-                Id = c.Id,
-                Content = c.Content ?? "",
-                Timestamp = c.Timestamp ?? DateTime.UtcNow,
-                SenderId = c.SenderId ?? 0,
-                SenderName = c.Sender?.UserName ?? "Unknown",
-                ReceiverId = c.ReceiverId ?? 0,
-                ReceiverName = c.Receiver?.UserName ?? "Unknown",
-                IsRead = c.IsRead ?? false
-            }).ToList();
+                chat.IsRead = true;
+                await _repository.UpdateAsync(chat);
+            }
+            return chats.Select(ToChatWithUserDTO).ToList();
         }
 
         public async Task<ChatWithUserDTO> SendMessageAsync(ChatCreateDTO chatDto)
@@ -50,30 +45,43 @@ namespace Void.Services
                 SenderId = chatDto.SenderId,
                 ReceiverId = chatDto.ReceiverId,
                 Content = chatDto.Content,
+                ImageData = chatDto.ImageData,
+                ImageMimeType = chatDto.ImageMimeType,
                 Timestamp = DateTime.UtcNow,
                 IsRead = false
             };
 
             await _repository.AddAsync(chat);
 
-            var result = new ChatWithUserDTO
+            var savedChat = chat;
+            if (chat.SenderId.HasValue && chat.ReceiverId.HasValue)
             {
-                Id = chat.Id,
-                Content = chat.Content,
-                Timestamp = chat.Timestamp ?? DateTime.UtcNow,
-                SenderId = chat.SenderId ?? 0,
-                SenderName = chat.Sender?.UserName ?? "Unknown",
-                ReceiverId = chat.ReceiverId ?? 0,
-                ReceiverName = chat.Receiver?.UserName ?? "Unknown",
-                IsRead = chat.IsRead ?? false
-            };
+                var conversation = await _repository.GetConversationAsync(chat.SenderId.Value, chat.ReceiverId.Value);
+                savedChat = conversation.FirstOrDefault(c => c.Id == chat.Id) ?? chat;
+            }
 
-            await _hub.Clients.User(chat.ReceiverId.ToString()).SendAsync("ReceiveMessage", result);
+            var result = ToChatWithUserDTO(savedChat);
 
-            // send a lightweight notification for new private message
-            if (chat.ReceiverId.HasValue)
+            if (savedChat.SenderId.HasValue)
             {
-                await _notificationService.SendToUser(chat.ReceiverId.Value, new { Type = "NewPrivateMessage", From = chat.SenderId, MessageId = chat.Id, Preview = (chat.Content ?? string.Empty).Substring(0, Math.Min(200, (chat.Content ?? string.Empty).Length)) });
+                await _hub.Clients.User(savedChat.SenderId.Value.ToString())
+                    .SendAsync("ReceiveMessage", result);
+            }
+
+            if (savedChat.ReceiverId.HasValue)
+            {
+                await _hub.Clients.User(savedChat.ReceiverId.Value.ToString())
+                    .SendAsync("ReceiveMessage", result);
+
+                var previewMessage = BuildPreviewMessage(savedChat);
+                await _notificationService.CreateAsync(
+                    recipientUserId: savedChat.ReceiverId.Value,
+                    senderUserId: savedChat.SenderId,
+                    type: NotificationTypes.Chat,
+                    title: "New message",
+                    message: previewMessage,
+                    relatedEntityId: savedChat.Id
+                );
             }
 
             return result;
@@ -121,6 +129,38 @@ namespace Void.Services
             }
 
             return true;
+        }
+
+        private static ChatWithUserDTO ToChatWithUserDTO(Chat chat)
+        {
+            return new ChatWithUserDTO
+            {
+                Id = chat.Id,
+                Content = chat.Content ?? "",
+                Timestamp = chat.Timestamp ?? DateTime.UtcNow,
+                SenderId = chat.SenderId ?? 0,
+                SenderName = chat.Sender?.UserName ?? "Unknown",
+                SenderLastActive = chat.Sender?.LastActive,
+                ReceiverId = chat.ReceiverId ?? 0,
+                ReceiverName = chat.Receiver?.UserName ?? "Unknown",
+                ReceiverLastActive = chat.Receiver?.LastActive,
+                ImageData = chat.ImageData,
+                ImageMimeType = chat.ImageMimeType,
+                IsRead = chat.IsRead ?? false
+            };
+        }
+
+        private static string BuildPreviewMessage(Chat chat)
+        {
+            var content = chat.Content ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(content))
+            {
+                return content[..Math.Min(200, content.Length)];
+            }
+
+            return string.IsNullOrWhiteSpace(chat.ImageData)
+                ? string.Empty
+                : "Sent you an image.";
         }
     }
 }

@@ -13,6 +13,8 @@ namespace Void.DTOs
         public int ReceiverId { get; set; }
         public string ReceiverName { get; set; } = "Unknown";
         public DateTime? ReceiverLastActive { get; set; }
+        public string? ImageData { get; set; }
+        public string? ImageMimeType { get; set; }
         public bool IsRead { get; set; }
     }
 
