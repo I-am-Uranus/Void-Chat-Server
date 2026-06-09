@@ -141,6 +141,24 @@ namespace Void.Services
             }).ToList();
         }
 
+        public async Task<List<BlockedUserDTO>> GetBlockedUsers(int userId)
+        {
+            var blocks = await _blockRepository.GetBlockedUsersForUserAsync(userId);
+
+            return blocks.Select(b =>
+            {
+                var blockedUser = b.Blocked;
+
+                return new BlockedUserDTO
+                {
+                    Id = blockedUser.Id,
+                    DisplayName = blockedUser.DisplayName ?? blockedUser.UserName ?? "Unknown user",
+                    UserName = blockedUser.UserName ?? string.Empty,
+                    ProfilePicture = blockedUser.ProfilePicture
+                };
+            }).ToList();
+        }
+
         public async Task<bool> RemoveFriend(int userId, int friendId)
         {
             var friendship = await _friendshipRepository.GetByUsersAsync(userId, friendId);

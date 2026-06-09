@@ -86,6 +86,14 @@ namespace Void.Controllers
             return Ok(requests);
         }
 
+        [HttpGet("blocked")]
+        public async Task<IActionResult> GetBlockedUsers()
+        {
+            var userId = GetCurrentUserId();
+            var blockedUsers = await _friendshipService.GetBlockedUsers(userId);
+            return Ok(blockedUsers);
+        }
+
         [HttpDelete("{friendId}")]
         public async Task<IActionResult> RemoveFriend(int friendId)
         {
