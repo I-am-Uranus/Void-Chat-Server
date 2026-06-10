@@ -24,14 +24,10 @@ public class GroupController : ControllerBase
 
         var currentUserId = GetCurrentUserId();
 
-        // Ensure creator is in the member list
-        if (!dto.MemberIds.Contains(currentUserId))
-            dto.MemberIds.Insert(0, currentUserId);
 
         try
         {
-            var group = await _groupService.CreateGroupAsync(dto.Name, dto.MemberIds);
-            return Ok(new { id = group.Id, name = group.Name });
+var group = await _groupService.CreateGroupAsync(dto.Name, currentUserId, dto.MemberIds);            return Ok(new { id = group.Id, name = group.Name });
         }
         catch (ArgumentException ex)
         {
@@ -67,19 +63,26 @@ public class GroupController : ControllerBase
         });
     }
 
-    [HttpPost("{id}/members")]
-    public async Task<IActionResult> AddMember(int id, [FromBody] int userId)
+  [HttpPost("{id}/members")]
+public async Task<IActionResult> AddMember(int id, [FromBody] AddGroupMemberDTO dto)
+{
+    var currentUserId = GetCurrentUserId();
+
+    try
     {
-        try
-        {
-            await _groupService.AddMemberAsync(id, userId);
-            return Ok(new { message = "Member added." });
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(new { error = ex.Message });
-        }
+        await _groupService.AddMemberAsync(id, currentUserId, dto.UserId);
+
+        return Ok(new { message = "Member added." });
     }
+    catch (UnauthorizedAccessException ex)
+    {
+        return Forbid();
+    }
+    catch (ArgumentException ex)
+    {
+        return BadRequest(new { error = ex.Message });
+    }
+}
 
     [HttpDelete("{id}/members/{userId}")]
     public async Task<IActionResult> RemoveMember(int id, int userId)

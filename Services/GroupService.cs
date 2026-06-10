@@ -12,25 +12,42 @@ namespace Void.Services
         private readonly GroupRepository _groupRepository;
         private readonly IHubContext<GroupChatHub> _hubContext;
         private readonly NotificationService _notificationService;
+        private readonly FriendshipService _friendshipService;
 
         public GroupService(
-            GroupRepository groupRepository,
-            IHubContext<GroupChatHub> hubContext,
-            NotificationService notificationService)
+              GroupRepository groupRepository,
+              IHubContext<GroupChatHub> hubContext,
+              NotificationService notificationService,
+              FriendshipService friendshipService)
         {
             _groupRepository = groupRepository;
             _hubContext = hubContext;
             _notificationService = notificationService;
+            _friendshipService = friendshipService;
         }
 
-        public async Task<Group> CreateGroupAsync(string name, List<int> memberIds)
+        public async Task<Group> CreateGroupAsync(string name, int creatorId, List<int> memberIds)
         {
             if (string.IsNullOrWhiteSpace(name))
                 throw new ArgumentException("Group name is required.");
 
-            return await _groupRepository.CreateGroupAsync(name, memberIds);
-        }
+            var finalMemberIds = memberIds
+                .Distinct()
+                .Where(id => id != creatorId)
+                .ToList();
 
+            foreach (var memberId in finalMemberIds)
+            {
+                var areFriends = await _friendshipService.AreFriends(creatorId, memberId);
+
+                if (!areFriends)
+                    throw new ArgumentException("You can only add your friends to a group.");
+            }
+
+            finalMemberIds.Insert(0, creatorId);
+
+            return await _groupRepository.CreateGroupAsync(name, finalMemberIds);
+        }
         public async Task<Group?> GetGroupAsync(int groupId)
         {
             return await _groupRepository.GetGroupAsync(groupId);
@@ -41,10 +58,37 @@ namespace Void.Services
             return await _groupRepository.GetGroupsForUserAsync(userId);
         }
 
-        public async Task AddMemberAsync(int groupId, int userId)
+        public async Task AddMemberAsync(int groupId, int currentUserId, int userIdToAdd)
         {
-            await _groupRepository.AddMemberAsync(groupId, userId);
-            await _notificationService.SendToUser(userId, new { Type = "AddedToGroup", GroupId = groupId });
+            var group = await _groupRepository.GetGroupAsync(groupId);
+
+            if (group == null)
+                throw new ArgumentException("Group not found.");
+
+            var currentUserIsMember = group.Members.Any(m => m.UserId == currentUserId);
+
+            if (!currentUserIsMember)
+                throw new UnauthorizedAccessException("You are not a member of this group.");
+
+            var userAlreadyInGroup = group.Members.Any(m => m.UserId == userIdToAdd);
+
+            if (userAlreadyInGroup)
+                throw new ArgumentException("User is already in this group.");
+
+            var areFriends = await _friendshipService.AreFriends(currentUserId, userIdToAdd);
+
+            if (!areFriends)
+                throw new ArgumentException("You can only add your own friends to this group.");
+
+            await _groupRepository.AddMemberAsync(groupId, userIdToAdd);
+
+            await _notificationService.SendToUser(userIdToAdd, new
+            {
+                Type = "AddedToGroup",
+                GroupId = groupId,
+                GroupName = group.Name,
+                AddedByUserId = currentUserId
+            });
         }
 
         public async Task RemoveMemberAsync(int groupId, int userId)
