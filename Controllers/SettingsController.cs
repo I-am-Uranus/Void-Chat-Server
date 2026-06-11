@@ -18,6 +18,68 @@ namespace Void.Controllers
             _settingsService = settingsService;
         }
 
+        [HttpPatch("profile")]
+        public IActionResult UpdateProfile([FromBody] UpdateProfileDTO? request)
+        {
+            if (request == null)
+                return BadRequest(new { error = "Invalid settings data" });
+
+            try
+            {
+                var userId = GetCurrentUserId();
+                var user = _settingsService.UpdateProfile(userId, request.DisplayName, request.ProfilePicture);
+
+                return Ok(new
+                {
+                    message = "Profile updated",
+                    user
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { error = ex.Message });
+            }
+        }
+
+        [HttpPatch("display-name")]
+        public IActionResult UpdateDisplayName([FromBody] UpdateDisplayNameDTO? request)
+        {
+            if (request == null)
+                return BadRequest(new { error = "Invalid settings data" });
+
+            try
+            {
+                var userId = GetCurrentUserId();
+                var user = _settingsService.UpdateDisplayName(userId, request.DisplayName);
+
+                return Ok(new
+                {
+                    message = "Display name updated",
+                    user
+                });
+            }
+            catch (ArgumentException ex)
+            {
+                return BadRequest(new { error = ex.Message });
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(new { error = ex.Message });
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                return Unauthorized(new { error = ex.Message });
+            }
+        }
+
         [HttpPatch("profile-picture")]
         public IActionResult UpdateProfilePicture([FromBody] UpdateProfilePictureDTO? request)
         {

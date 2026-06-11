@@ -5,6 +5,17 @@ namespace Void.DTOs
         public string? ProfilePicture { get; set; }
     }
 
+    public class UpdateDisplayNameDTO
+    {
+        public string DisplayName { get; set; } = string.Empty;
+    }
+
+    public class UpdateProfileDTO
+    {
+        public string DisplayName { get; set; } = string.Empty;
+        public string? ProfilePicture { get; set; }
+    }
+
     public class UserSettingsDTO
     {
         public int Id { get; set; }
