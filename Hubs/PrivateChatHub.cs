@@ -75,6 +75,10 @@ namespace Void.Hubs
                     ImageMimeType = messageDto.ImageMimeType
                 });
             }
+            catch (ArgumentException ex)
+            {
+                throw new HubException(ex.Message);
+            }
             catch (Exception ex)
             {
                 Debug.WriteLine($"SendPrivateMessage error for sender {senderId}: {ex.Message}");

@@ -58,7 +58,10 @@ namespace Void
             services.AddControllers();
             services.AddEndpointsApiExplorer();
             services.AddSwaggerGen();
-            services.AddSignalR();
+            services.AddSignalR(options =>
+            {
+                options.MaximumReceiveMessageSize = 5 * 1024 * 1024;
+            });
 
             // Route Clients.User(id) through NameIdentifier claim (user id)
             services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();

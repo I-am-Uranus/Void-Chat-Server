@@ -41,13 +41,15 @@ namespace Void.Services
 
         public async Task<ChatWithUserDTO> SendMessageAsync(ChatCreateDTO chatDto)
         {
+            ValidateMessage(chatDto.Content, chatDto.ImageData, chatDto.ImageMimeType);
+
             var chat = new Chat
             {
                 SenderId = chatDto.SenderId,
                 ReceiverId = chatDto.ReceiverId,
-                Content = chatDto.Content,
-                ImageData = chatDto.ImageData,
-                ImageMimeType = chatDto.ImageMimeType,
+                Content = chatDto.Content ?? string.Empty,
+                ImageData = Normalize(chatDto.ImageData),
+                ImageMimeType = Normalize(chatDto.ImageMimeType),
                 Timestamp = DateTime.UtcNow,
                 IsRead = false
             };
@@ -88,6 +90,24 @@ namespace Void.Services
             }
 
             return result;
+        }
+
+        private static void ValidateMessage(string? content, string? imageData, string? imageMimeType)
+        {
+            var errors = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(content) && string.IsNullOrWhiteSpace(imageData))
+                errors.Add("Message content or image is required.");
+
+            MessageImageValidator.Validate(imageData, imageMimeType, errors);
+
+            if (errors.Any())
+                throw new ArgumentException(string.Join(Environment.NewLine, errors));
+        }
+
+        private static string? Normalize(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
         public async Task<int> MarkConversationAsSeen(int viewerId, int otherUserId)

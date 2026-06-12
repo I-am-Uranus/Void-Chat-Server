@@ -109,6 +109,8 @@ namespace Void.Services
             string? imageData = null,
             string? imageMimeType = null)
         {
+            ValidateMessage(content, imageData, imageMimeType);
+
             var group = await _groupRepository.GetGroupAsync(groupId);
             if (group == null)
                 throw new ArgumentException("Group not found.");
@@ -117,7 +119,17 @@ namespace Void.Services
             if (!isMember)
                 throw new UnauthorizedAccessException("You are not a member of this group.");
 
-            var message = await _groupRepository.AddMessageAsync(groupId, senderId, content, imageData, imageMimeType);
+            var normalizedContent = content ?? string.Empty;
+            var normalizedImageData = Normalize(imageData);
+            var normalizedImageMimeType = Normalize(imageMimeType);
+
+            var message = await _groupRepository.AddMessageAsync(
+                groupId,
+                senderId,
+                normalizedContent,
+                normalizedImageData,
+                normalizedImageMimeType);
+
             var dto = ToDTO(message);
 
             var memberIds = group.Members.Select(m => m.UserId.ToString()).ToList();
@@ -132,7 +144,7 @@ namespace Void.Services
                         senderUserId: senderId,
                         type: NotificationTypes.Group,
                         title: $"New message in {group.Name}",
-                        message: BuildPreview(content),
+                        message: BuildPreview(normalizedContent, normalizedImageData),
                         relatedEntityId: message.Id);
                 }
                 catch (Exception ex)
@@ -142,6 +154,19 @@ namespace Void.Services
             }
 
             return dto;
+        }
+
+        private static void ValidateMessage(string? content, string? imageData, string? imageMimeType)
+        {
+            var errors = new List<string>();
+
+            if (string.IsNullOrWhiteSpace(content) && string.IsNullOrWhiteSpace(imageData))
+                errors.Add("Message content or image is required.");
+
+            MessageImageValidator.Validate(imageData, imageMimeType, errors);
+
+            if (errors.Any())
+                throw new ArgumentException(string.Join(Environment.NewLine, errors));
         }
 
         private static GroupMessageDTO ToDTO(GroupMessage message) => new GroupMessageDTO
@@ -157,9 +182,17 @@ namespace Void.Services
             ImageMimeType = message.ImageMimeType
         };
 
-        private static string BuildPreview(string? content) =>
-            string.IsNullOrWhiteSpace(content)
-                ? "Sent an image."
-                : content[..Math.Min(200, content.Length)];
+        private static string? Normalize(string? value)
+        {
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+        }
+
+        private static string BuildPreview(string? content, string? imageData)
+        {
+            if (!string.IsNullOrWhiteSpace(content))
+                return content[..Math.Min(200, content.Length)];
+
+            return string.IsNullOrWhiteSpace(imageData) ? string.Empty : "Sent an image.";
+        }
     }
 }

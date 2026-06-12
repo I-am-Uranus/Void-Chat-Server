@@ -31,8 +31,16 @@ public class ChatController : ControllerBase
     public async Task<IActionResult> SendMessage([FromBody] ChatCreateDTO chatDto)
     {
         chatDto.SenderId = GetCurrentUserId();
-        var result = await _chatService.SendMessageAsync(chatDto);
-        return Ok(result);
+
+        try
+        {
+            var result = await _chatService.SendMessageAsync(chatDto);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpPost("image/{user1}/{user2}")]
@@ -44,8 +52,19 @@ public class ChatController : ControllerBase
 
         chatDto.SenderId = currentUserId;
         chatDto.ReceiverId = currentUserId == user1 ? user2 : user1;
-        var result = await _chatService.SendMessageAsync(chatDto);
-        return Ok(result);
+
+        if (string.IsNullOrWhiteSpace(chatDto.ImageData))
+            return BadRequest(new { error = "Image data is required." });
+
+        try
+        {
+            var result = await _chatService.SendMessageAsync(chatDto);
+            return Ok(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
 
     [HttpPost("seen/conversation")]

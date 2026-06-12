@@ -106,6 +106,11 @@ public async Task<IActionResult> AddMember(int id, [FromBody] AddGroupMemberDTO 
         if (string.IsNullOrWhiteSpace(dto.Content) && string.IsNullOrWhiteSpace(dto.ImageData))
             return BadRequest(new { error = "Message content or image is required." });
 
+        var errors = new List<string>();
+        MessageImageValidator.Validate(dto.ImageData, dto.ImageMimeType, errors);
+        if (errors.Any())
+            return BadRequest(new { error = string.Join(Environment.NewLine, errors) });
+
         try
         {
             var result = await _groupService.SendMessageAsync(id, senderId, dto.Content ?? string.Empty, dto.ImageData, dto.ImageMimeType);
@@ -113,7 +118,10 @@ public async Task<IActionResult> AddMember(int id, [FromBody] AddGroupMemberDTO 
         }
         catch (ArgumentException ex)
         {
-            return NotFound(new { error = ex.Message });
+            if (ex.Message == "Group not found.")
+                return NotFound(new { error = ex.Message });
+
+            return BadRequest(new { error = ex.Message });
         }
         catch (UnauthorizedAccessException ex)
         {
@@ -129,6 +137,11 @@ public async Task<IActionResult> AddMember(int id, [FromBody] AddGroupMemberDTO 
         if (string.IsNullOrWhiteSpace(dto.ImageData))
             return BadRequest(new { error = "Image data is required." });
 
+        var errors = new List<string>();
+        MessageImageValidator.Validate(dto.ImageData, dto.ImageMimeType, errors);
+        if (errors.Any())
+            return BadRequest(new { error = string.Join(Environment.NewLine, errors) });
+
         try
         {
             var result = await _groupService.SendMessageAsync(id, senderId, string.Empty, dto.ImageData, dto.ImageMimeType);
@@ -136,7 +149,10 @@ public async Task<IActionResult> AddMember(int id, [FromBody] AddGroupMemberDTO 
         }
         catch (ArgumentException ex)
         {
-            return NotFound(new { error = ex.Message });
+            if (ex.Message == "Group not found.")
+                return NotFound(new { error = ex.Message });
+
+            return BadRequest(new { error = ex.Message });
         }
         catch (UnauthorizedAccessException)
         {
