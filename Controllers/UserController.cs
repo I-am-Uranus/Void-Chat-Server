@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
-using Void.Models;
-using Void.Services;
+using VoidPart2.Models;
+using VoidPart2.Services;
 
 
-namespace Void.Controllers
+namespace VoidPart2.Controllers
 {
     [Route("api/[controller]")]
     [ApiController]

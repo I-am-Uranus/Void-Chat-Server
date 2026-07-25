@@ -1,6 +1,6 @@
-﻿using Void.Models;
+using VoidPart2.Models;
 
-namespace Void.DTOs
+namespace VoidPart2.DTOs
 {
     public class FriendshipDTO
     {

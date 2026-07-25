@@ -1,7 +1,7 @@
-﻿using System.Text.RegularExpressions;
-using Void.Models;
+using System.Text.RegularExpressions;
+using VoidPart2.Models;
 
-namespace Void.Services
+namespace VoidPart2.Services
 {
     public class AuthenticationService
     {

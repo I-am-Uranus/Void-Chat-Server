@@ -1,8 +1,8 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using Void.DTOs;
-using Void.Services;
+using VoidPart2.DTOs;
+using VoidPart2.Services;
 
 [ApiController]
 [Route("api/chats")]

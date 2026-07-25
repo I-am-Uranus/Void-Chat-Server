@@ -3,7 +3,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Claims;
 
-namespace Void.Hubs
+namespace VoidPart2.Hubs
 {
     public class NotificationHub : Hub
     {

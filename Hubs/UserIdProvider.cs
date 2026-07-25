@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using System.Security.Claims;
 
-namespace Void.Hubs
+namespace VoidPart2.Hubs
 {
     public class NameIdentifierUserIdProvider : IUserIdProvider
     {

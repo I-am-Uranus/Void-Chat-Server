@@ -1,6 +1,6 @@
-﻿
 
-namespace Void.DTOs
+
+namespace VoidPart2.DTOs
 {
     public class ChatWithUserDTO
     {

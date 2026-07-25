@@ -1,7 +1,7 @@
-﻿using Microsoft.EntityFrameworkCore;
-using Void.Models;
+using Microsoft.EntityFrameworkCore;
+using VoidPart2.Models;
 
-namespace Void.Database
+namespace VoidPart2.Database
 {
     public class DatabaseContext : DbContext
     {

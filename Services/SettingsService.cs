@@ -1,8 +1,8 @@
-using Void.DTOs;
-using Void.Models;
-using Void.Repositories;
+using VoidPart2.DTOs;
+using VoidPart2.Models;
+using VoidPart2.Repositories;
 
-namespace Void.Services
+namespace VoidPart2.Services
 {
     public class SettingsService
     {

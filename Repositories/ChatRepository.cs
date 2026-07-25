@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using Void.Database;
-using Void.Models;
+using VoidPart2.Database;
+using VoidPart2.Models;
 
-namespace Void.Repositories
+namespace VoidPart2.Repositories
 {
     public class ChatRepository
     {

@@ -1,4 +1,4 @@
-﻿namespace Void.Models
+namespace VoidPart2.Models
 {
     public class GroupMessage
     {

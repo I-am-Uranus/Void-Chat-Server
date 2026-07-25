@@ -3,10 +3,10 @@ using Microsoft.AspNetCore.SignalR;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Claims;
-using Void.DTOs;
-using Void.Services;
+using VoidPart2.DTOs;
+using VoidPart2.Services;
 
-namespace Void.Hubs
+namespace VoidPart2.Hubs
 {
     [Authorize]
     public class PrivateChatHub : Hub

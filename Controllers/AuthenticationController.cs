@@ -2,10 +2,10 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using Void.Models.Auth;
-using AuthenticationService = Void.Services.AuthenticationService;
+using VoidPart2.Models.Auth;
+using AuthenticationService = VoidPart2.Services.AuthenticationService;
 
-namespace Void.Controllers
+namespace VoidPart2.Controllers
 {
     [Route("api/authentication")]
     [Route("api/auth")]

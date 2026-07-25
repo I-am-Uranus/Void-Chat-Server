@@ -1,9 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
-using Void.Services;
+using VoidPart2.Services;
 
-namespace Void.Controllers
+namespace VoidPart2.Controllers
 {
     [ApiController]
     [Authorize]

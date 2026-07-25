@@ -1,11 +1,11 @@
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
-using Void.Database;
-using Void.DTOs;
-using Void.Hubs;
-using Void.Models;
+using VoidPart2.Database;
+using VoidPart2.DTOs;
+using VoidPart2.Hubs;
+using VoidPart2.Models;
 
-namespace Void.Services
+namespace VoidPart2.Services
 {
     public class NotificationService
     {

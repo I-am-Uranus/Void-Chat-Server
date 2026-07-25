@@ -1,4 +1,4 @@
-namespace Void.Services
+namespace VoidPart2.Services
 {
     public static class MessageImageValidator
     {

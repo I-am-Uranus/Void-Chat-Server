@@ -1,4 +1,4 @@
-﻿namespace Void.Models.Auth
+namespace VoidPart2.Models.Auth
 {
     public class RegisterRequest
     {

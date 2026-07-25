@@ -2,13 +2,13 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using System.Data;
-using Void.Database;
-using Void.Hubs;
-using Void.Repositories;
-using Void.Services;
+using VoidPart2.Database;
+using VoidPart2.Hubs;
+using VoidPart2.Repositories;
+using VoidPart2.Services;
 
 
-namespace Void
+namespace VoidPart2
 {
     public class Startup
     {
