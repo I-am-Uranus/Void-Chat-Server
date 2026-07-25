@@ -27,7 +27,7 @@ public class GroupController : ControllerBase
 
         try
         {
-var group = await _groupService.CreateGroupAsync(dto.Name, currentUserId, dto.MemberIds);            return Ok(new { id = group.Id, name = group.Name });
+            var group = await _groupService.CreateGroupAsync(dto.Name, currentUserId, dto.MemberIds); return Ok(new { id = group.Id, name = group.Name });
         }
         catch (ArgumentException ex)
         {
@@ -63,26 +63,26 @@ var group = await _groupService.CreateGroupAsync(dto.Name, currentUserId, dto.Me
         });
     }
 
-  [HttpPost("{id}/members")]
-public async Task<IActionResult> AddMember(int id, [FromBody] AddGroupMemberDTO dto)
-{
-    var currentUserId = GetCurrentUserId();
+    [HttpPost("{id}/members")]
+    public async Task<IActionResult> AddMember(int id, [FromBody] AddGroupMemberDTO dto)
+    {
+        var currentUserId = GetCurrentUserId();
 
-    try
-    {
-        await _groupService.AddMemberAsync(id, currentUserId, dto.UserId);
+        try
+        {
+            await _groupService.AddMemberAsync(id, currentUserId, dto.UserId);
 
-        return Ok(new { message = "Member added." });
+            return Ok(new { message = "Member added." });
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            return Forbid();
+        }
+        catch (ArgumentException ex)
+        {
+            return BadRequest(new { error = ex.Message });
+        }
     }
-    catch (UnauthorizedAccessException ex)
-    {
-        return Forbid();
-    }
-    catch (ArgumentException ex)
-    {
-        return BadRequest(new { error = ex.Message });
-    }
-}
 
     [HttpDelete("{id}/members/{userId}")]
     public async Task<IActionResult> RemoveMember(int id, int userId)
